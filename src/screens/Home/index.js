@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform, Image } from 'react-native';
 import { TextInput, Button, SegmentedButtons } from 'react-native-paper';
 import Slider from '@react-native-community/slider';
 import { loadFonts, getAvailableFonts } from '../../utils/fontLoader';
-import { createCanvas, drawText, saveImage } from '../../utils/canvas';
+import { drawText, saveImage, canvasToImage } from '../../utils/canvas';
+import * as FileSystem from 'expo-file-system';
+import Canvas from 'react-native-canvas';
+import { Asset } from 'expo-asset';
 
 const backgrounds = [
   { name: 'leaf', source: require('../../assets/background/leaf.png') },
@@ -18,100 +21,185 @@ const Home = () => {
   const [selectedFont, setSelectedFont] = useState('平方上上谦体');
   const [availableFonts, setAvailableFonts] = useState([]);
   const [selectedBackground, setSelectedBackground] = useState(backgrounds[0]);
-  const [fontSizeScale, setFontSizeScale] = useState(0.7); // 字体大小缩放比例
+  const [fontSizeScale, setFontSizeScale] = useState(0.7);
+  const [isLoading, setIsLoading] = useState(false);
+  const [canvasInstance, setCanvasInstance] = useState(null);
 
   useEffect(() => {
-    // 加载字体
     const initFonts = async () => {
-      await loadFonts();
-      setIsFontLoaded(true);
-      setAvailableFonts(getAvailableFonts());
+      try {
+        await loadFonts();
+        setIsFontLoaded(true);
+        setAvailableFonts(getAvailableFonts());
+      } catch (error) {
+        console.error('字体加载失败:', error);
+      }
     };
     initFonts();
   }, []);
 
-  // 计算自适应字体大小
+  const handleCanvasLoad = async (canvas) => {
+    if (Platform.OS !== 'web' && canvas) {
+      const canvasSize = 1000;
+      await new Promise(resolve => {
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        resolve();
+      });
+      console.log('Canvas dimensions set via onLoad prop.');
+      setCanvasInstance(canvas);
+    } else if (Platform.OS === 'web' && canvas) {
+      const canvasSize = 1000;
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      setCanvasInstance(canvas);
+    }
+  };
+
   const calculateFontSize = (canvasSize, text, maxWidth) => {
     const lines = text.split('\n');
     const maxLineLength = Math.max(...lines.map(line => line.length));
     const baseFontSize = Math.floor(canvasSize / 4);
     
-    // 根据文本长度调整基础字体大小
     let adjustedFontSize = baseFontSize;
     if (maxLineLength > 10) {
       adjustedFontSize = Math.floor(baseFontSize * (10 / maxLineLength));
     }
     
-    // 应用用户设置的缩放比例
     return Math.floor(adjustedFontSize * fontSizeScale);
   };
 
-  const generatePreview = () => {
-    if (!text || !isFontLoaded) return;
+  const generatePreview = async () => {
+    if (!text || !isFontLoaded || !canvasInstance) return;
+    
+    try {
+      setIsLoading(true);
+      const canvas = canvasInstance;
+      const canvasSize = 1000;
+      
+      const ctx = canvas.getContext('2d');
 
-    const canvasSize = 1000;
-    const canvas = createCanvas(canvasSize, canvasSize);
-    const ctx = canvas.getContext('2d');
-    const img = new window.Image();
-    img.src = selectedBackground.source;
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (Platform.OS === 'web') {
+        const img = new window.Image();
+        img.src = selectedBackground.source;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+        });
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else {
+        const asset = Asset.fromModule(selectedBackground.source);
+        await asset.downloadAsync();
+        
+        const localUri = asset.localUri || asset.uri;
+        const base64Image = await FileSystem.readAsStringAsync(localUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        const img = new Canvas.Image(canvas);
+        img.src = `data:image/png;base64,${base64Image}`;
+        await new Promise(resolve => {
+          img.addEventListener('load', () => resolve());
+        });
+        console.log('Before drawImage in generatePreview (Android):');
+        console.log('  typeof img:', typeof img);
+        console.log('  img.src (first 50 chars):', img.src ? img.src.substring(0, 50) : 'null');
+        console.log('  img instanceof Canvas.Image:', img instanceof Canvas.Image);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
       
-      // 计算自适应字体大小
       const fontSize = calculateFontSize(canvasSize, text, canvasSize * 0.1);
-      ctx.font = `${fontSize}px "${selectedFont}"`;
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = fontSize / 60;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-      const lines = text.split('\n');
-      const lineHeight = fontSize * 1.2;
-      const totalHeight = lines.length * lineHeight;
-      const startY = (canvasSize - totalHeight) / 2;
-      
-      // 保存当前状态
-      ctx.save();
-      // 移动到画布中心
-      ctx.translate(canvasSize / 2, canvasSize / 2);
-      // 旋转 -2 度（负值表示逆时针旋转）
-      ctx.rotate(-2 * Math.PI / 180);
-      // 移回原位
-      ctx.translate(-canvasSize / 2, -canvasSize / 2);
-      
-      lines.forEach((line, index) => {
-        const y = startY + index * lineHeight;
-        ctx.strokeText(line, canvasSize / 2, y);
-        ctx.fillText(line, canvasSize / 2, y);
+      await drawText(canvas, text, {
+        font: `${fontSize}px "${selectedFont}"`,
+        color: '#FFFFFF',
+        x: canvasSize / 2,
+        y: canvasSize / 2,
+        maxWidth: canvasSize * 0.8,
+        lineHeight: fontSize * 1.2
       });
 
-      // 恢复之前的状态
-      ctx.restore();
-
-      canvas.toBlob((blob) => {
-        setPreviewUrl(URL.createObjectURL(blob));
-      }, 'image/png');
-    };
+      const imageUrl = await canvasToImage(canvas);
+      console.log('imageUrl before setPreviewUrl:', typeof imageUrl, imageUrl ? imageUrl.substring(0, 100) : imageUrl);
+      if (imageUrl && typeof imageUrl === 'string') {
+        // setPreviewUrl(imageUrl); // 暂时注释掉这行，以隔离问题
+      } else {
+        console.error('canvasToImage did not return a valid image URL:', imageUrl);
+        // setPreviewUrl(null); // 暂时注释掉这行，以隔离问题
+      }
+    } catch (error) {
+      console.error('生成预览失败: 捕获到错误.', {
+        errorObject: error, // 打印原始错误对象
+        name: error ? error.name : 'UnknownError',
+        message: error ? error.message : 'No message',
+        stack: error ? error.stack : 'No stack',
+        // 尝试 stringify 错误对象，排除可能导致循环引用的属性
+        stringifiedError: JSON.stringify(error, (key, value) => {
+          if (value === window || value === document) { // 避免循环引用或不可序列化的DOM对象
+            return undefined;
+          }
+          // 过滤掉可能引起问题的复杂对象，或者只保留基本类型
+          if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            // 简单地返回其类型以避免深度复制或复杂结构
+            // return `[Object ${value.constructor ? value.constructor.name : 'Anonymous'}]`;
+            // 尝试更安全的序列化：只保留可枚举属性
+            return Object.fromEntries(Object.entries(value).filter(([k, v]) => typeof v !== 'function' && typeof v !== 'object' || v === null));
+          }
+          return value;
+        })
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSave = async () => {
-    if (!previewUrl) return;
-    const canvas = document.createElement('canvas');
-    const img = new window.Image();
-    img.src = previewUrl;
-    await new Promise((resolve) => {
-      img.onload = resolve;
-    });
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    await saveImage(canvas, 'handwriting.png');
+    if (!previewUrl || !canvasInstance) return;
+    
+    try {
+      setIsLoading(true);
+      const canvas = canvasInstance;
+      const canvasSize = 1000;
+
+      const ctx = canvas.getContext('2d');
+
+      if (Platform.OS === 'web') {
+        const img = new window.Image();
+        img.src = previewUrl;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+        });
+        ctx.drawImage(img, 0, 0);
+      } else {
+        const img = new Canvas.Image(canvas);
+        img.src = previewUrl;
+        await new Promise(resolve => {
+          img.addEventListener('load', () => resolve());
+        });
+        console.log('Before drawImage in handleSave (Android):');
+        console.log('  typeof img:', typeof img);
+        console.log('  img.src (first 50 chars):', img.src ? img.src.substring(0, 50) : 'null');
+        console.log('  img instanceof Canvas.Image:', img instanceof Canvas.Image);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+
+      await saveImage(canvas, 'handwriting.png');
+    } catch (error) {
+      console.error('保存图片失败: 一个非可序列化错误对象被捕获.', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
+      <Canvas 
+        ref={(canvas) => {
+          if (canvas) {
+            handleCanvasLoad(canvas);
+          }
+        }}
+        style={{ width: 0, height: 0, position: 'absolute', opacity: 0 }}
+      />
+
       <TextInput
         mode="outlined"
         label="输入文本"
@@ -169,6 +257,8 @@ const Home = () => {
           mode="contained"
           onPress={generatePreview}
           style={styles.button}
+          loading={isLoading}
+          disabled={isLoading}
         >
           生成预览
         </Button>
@@ -176,7 +266,8 @@ const Home = () => {
           mode="contained"
           onPress={handleSave}
           style={styles.button}
-          disabled={!previewUrl}
+          loading={isLoading}
+          disabled={!previewUrl || isLoading}
         >
           保存图片
         </Button>
@@ -184,7 +275,15 @@ const Home = () => {
 
       <View style={styles.previewContainer}>
         {previewUrl && (
-          <img src={previewUrl} alt="预览" style={styles.preview} />
+          Platform.OS === 'web' ? (
+            <img src={previewUrl} alt="预览" style={styles.preview} />
+          ) : (
+            <Image 
+              source={{ uri: previewUrl }} 
+              style={styles.preview}
+              resizeMode="contain"
+            />
+          )
         )}
       </View>
     </View>
@@ -230,7 +329,7 @@ const styles = StyleSheet.create({
   preview: {
     maxWidth: '100%',
     maxHeight: '100%',
-    objectFit: 'contain',
+    resizeMode: 'contain',
   },
   buttonContainer: {
     flexDirection: 'row',

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as Font from 'expo-font';
 
 // 字体文件映射
 const fontMap = {
@@ -21,8 +22,10 @@ export const loadFonts = async () => {
     }
   } else {
     // 移动端字体加载
-    // 使用 react-native-font-loader 加载字体
-    // 具体实现待补充
+    const fontPromises = Object.entries(fontMap).map(([fontName, fontPath]) =>
+      Font.loadAsync({ [fontName]: fontPath })
+    );
+    await Promise.all(fontPromises);
   }
 };
 
@@ -36,6 +39,6 @@ export const isFontLoaded = (fontName) => {
   if (Platform.OS === 'web') {
     return document.fonts.check(`12px "${fontName}"`);
   }
-  // 移动端实现待补充
-  return false;
+  // 移动端检查字体是否已加载
+  return Font.isLoaded(fontName);
 }; 
