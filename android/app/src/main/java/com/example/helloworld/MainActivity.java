@@ -17,19 +17,34 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.bumptech.glide.Glide;
+import android.widget.ArrayAdapter;
 import java.io.OutputStream;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import android.widget.ImageButton;
 
 public class MainActivity extends AppCompatActivity {
     private EditText etInput;
     private ImageView ivPreview;
     private Button btnGenerate, btnSave;
     private Bitmap generatedBitmap;
+    private Spinner spinnerFont, spinnerBg;
+    private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
+    private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
+    private String[] bgNames = {"月亮1", "月亮2", "叶子"};
+    private int[] bgResIds = {R.drawable.moon1, R.drawable.moon2, R.drawable.leaf};
+    private int selectedFont = 0, selectedBg = 0;
+    private SeekBar seekBarSize;
+    private TextView tvSizeLabel;
+    private int fontSize = 80;
+    private ImageButton btnClear;
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
 
@@ -42,6 +57,61 @@ public class MainActivity extends AppCompatActivity {
         ivPreview = findViewById(R.id.ivPreview);
         btnGenerate = findViewById(R.id.btnGenerate);
         btnSave = findViewById(R.id.btnSave);
+        spinnerFont = findViewById(R.id.spinnerFont);
+        spinnerBg = findViewById(R.id.spinnerBg);
+        seekBarSize = findViewById(R.id.seekBarSize);
+        tvSizeLabel = findViewById(R.id.tvSizeLabel);
+        btnClear = findViewById(R.id.btnClear);
+
+        spinnerFont.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fontNames));
+        spinnerBg.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, bgNames));
+
+        spinnerFont.setSelection(selectedFont);
+        spinnerBg.setSelection(selectedBg);
+
+        // SeekBar设置范围 30~150
+        seekBarSize.setMax(600); // 实际范围=30+0~120=30~150
+        seekBarSize.setProgress(200); // 初始80
+        fontSize = 80;
+        tvSizeLabel.setText("字号：" + fontSize);
+
+        seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                fontSize = progress + 30;
+                tvSizeLabel.setText("字号：" + fontSize);
+                autoGenerateImage();
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        spinnerFont.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                selectedFont = position;
+                autoGenerateImage();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+        spinnerBg.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                selectedBg = position;
+                autoGenerateImage();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+        etInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                autoGenerateImage();
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        // 首次自动生成
+        autoGenerateImage();
 
         btnGenerate.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -72,29 +142,54 @@ public class MainActivity extends AppCompatActivity {
                 saveImageToGallery(generatedBitmap);
             }
         });
+
+        btnClear.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                etInput.setText("");
+            }
+        });
+    }
+
+    // 自动生成图片并预览
+    private void autoGenerateImage() {
+        String text = etInput.getText().toString().trim();
+        if (TextUtils.isEmpty(text)) {
+            ivPreview.setImageResource(R.drawable.moon1);
+            generatedBitmap = null;
+            return;
+        }
+        generatedBitmap = generateImage(text);
+        Glide.with(MainActivity.this).load(generatedBitmap).into(ivPreview);
     }
 
     // 合成图片：背景+文字+字体
     private Bitmap generateImage(String text) {
-        // 1. 加载背景图片（以 moon1.png 为例）
-        Bitmap bg = BitmapFactory.decodeResource(getResources(), R.drawable.moon1);
+        // 1. 加载背景图片
+        Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
         Bitmap result = Bitmap.createBitmap(bg.getWidth(), bg.getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
         canvas.drawBitmap(bg, 0, 0, null);
 
         // 2. 加载字体
-        Typeface typeface = Typeface.createFromAsset(getAssets(), "fonts/平方韶华体.ttf");
+        Typeface typeface = Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setTypeface(typeface);
-        paint.setTextSize(80);
+        paint.setTextSize(fontSize);
         paint.setColor(0xFFFFFFFF); // 白色
         paint.setShadowLayer(8, 4, 4, 0x80000000);
+        paint.setTextSkewX(-0.2f); // 微微倾斜
 
-        // 3. 文字居中绘制
-        float textWidth = paint.measureText(text);
-        float x = (bg.getWidth() - textWidth) / 2;
-        float y = bg.getHeight() / 2;
-        canvas.drawText(text, x, y, paint);
+        // 3. 多行自动换行绘制
+        String[] lines = text.split("\\n");
+        float totalHeight = lines.length * (paint.getFontSpacing());
+        float y = (bg.getHeight() - totalHeight) / 2 + Math.abs(paint.ascent());
+        for (String line : lines) {
+            float textWidth = paint.measureText(line);
+            float x = (bg.getWidth() - textWidth) / 2;
+            canvas.drawText(line, x, y, paint);
+            y += paint.getFontSpacing();
+        }
 
         return result;
     }
