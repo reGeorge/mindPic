@@ -218,15 +218,14 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    // Android 10 以下需要动态权限
                     if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                         ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_PERMISSION);
-                    } else {
-                        saveImageToGallery(generatedBitmap);
+                        return;
                     }
-                } else {
-                    saveImageToGallery(generatedBitmap);
                 }
+                saveImageToGallery(generatedBitmap);
             }
         });
 
