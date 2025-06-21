@@ -2,4 +2,8 @@
     <style name="Theme.HelloWorld" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
     </style>
+    <style name="Widget.MindPic.TextInputLayout.OutlinedBox" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/colorInputOutline</item>
+        <item name="boxBackgroundColor">@android:color/white</item>
+    </style>
 </resources> 

@@ -22,72 +22,69 @@
         app:layout_constraintRight_toRightOf="parent" />
 
     <!-- 输入框和一键清空按钮容器 -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/inputContainer"
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/textInputLayout"
+        style="@style/Widget.MindPic.TextInputLayout.OutlinedBox"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         app:layout_constraintTop_toBottomOf="@id/tvTitle"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        android:layout_marginTop="48dp"
+        android:layout_marginTop="32dp"
         android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp">
-
-        <EditText
+        android:layout_marginRight="32dp"
+        app:boxBackgroundMode="outline"
+        app:boxCornerRadiusTopStart="16dp"
+        app:boxCornerRadiusTopEnd="16dp"
+        app:boxCornerRadiusBottomStart="16dp"
+        app:boxCornerRadiusBottomEnd="16dp"
+        app:endIconMode="clear_text">
+        <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etInput"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="请输入描述"
-            android:background="@android:drawable/edit_text"
-            android:padding="12dp"
-            android:textSize="16sp"
+            android:background="@android:color/transparent"
+            android:padding="16dp"
+            android:textSize="18sp"
             android:inputType="textMultiLine"
             android:gravity="top|start"
             android:minLines="2"
-            android:maxLines="5"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintRight_toLeftOf="@id/btnClear"
-            android:layout_marginRight="8dp" />
-
-        <ImageButton
-            android:id="@+id/btnClear"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:background="@android:color/transparent"
-            android:contentDescription="清空"
-            app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            android:maxLines="5" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <!-- 字体选择（平铺单选） -->
     <com.google.android.material.button.MaterialButtonToggleGroup
         android:id="@+id/groupFont"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/inputContainer"
+        app:layout_constraintTop_toBottomOf="@id/textInputLayout"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         android:layout_marginTop="16dp"
         android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp">
+        android:layout_marginRight="32dp"
+        app:singleSelection="true">
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFont1"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="韶华体"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFont2"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="洒脱体"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFont3"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="上上谦体"/>
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
@@ -101,21 +98,28 @@
         app:layout_constraintRight_toRightOf="parent"
         android:layout_marginTop="8dp"
         android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp">
+        android:layout_marginRight="32dp"
+        app:singleSelection="true">
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBg1"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="月亮1"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBg2"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="月亮2"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBg3"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="叶子"/>
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
@@ -129,21 +133,28 @@
         app:layout_constraintRight_toRightOf="parent"
         android:layout_marginTop="8dp"
         android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp">
+        android:layout_marginRight="32dp"
+        app:singleSelection="true">
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAlignCenter"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="居中"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAlignLeft"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="左对齐"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAlignRight"
-            android:layout_width="wrap_content"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="右对齐"/>
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
@@ -163,14 +174,15 @@
         android:id="@+id/seekBarSize"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:max="120"
-        android:progress="80"
+        android:max="270"
+        android:progress="120"
         app:layout_constraintTop_toBottomOf="@id/tvSizeLabel"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         android:layout_marginTop="8dp"
         android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp" />
+        android:layout_marginRight="32dp"
+        android:progressTint="@color/colorPrimary" />
 
     <!-- 图片预览区域（支持手势） -->
     <ImageView
@@ -189,21 +201,19 @@
         android:layout_marginLeft="32dp"
         android:layout_marginRight="32dp" />
 
-    <!-- 保存按钮 -->
-    <Button
-        android:id="@+id/btnSave"
-        android:layout_width="0dp"
-        android:layout_height="48dp"
-        android:text="保存"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#2196F3"
-        android:textSize="16sp"
-        app:layout_constraintTop_toBottomOf="@id/ivPreview"
-        app:layout_constraintLeft_toLeftOf="parent"
+    <!-- 悬浮分享按钮 -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabShare"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@android:drawable/ic_menu_save"
+        app:backgroundTint="@color/colorPrimary"
+        app:tint="@android:color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        android:layout_marginTop="32dp"
-        android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp" />
+        android:layout_marginBottom="48dp"
+        android:layout_marginRight="32dp"
+        android:contentDescription="保存图片" />
 
     <!-- 底部版本号 -->
     <TextView
@@ -216,6 +226,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginBottom="16dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout> 

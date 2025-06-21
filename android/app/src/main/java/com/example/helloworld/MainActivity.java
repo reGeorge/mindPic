@@ -40,12 +40,14 @@ import android.text.Layout;
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.button.MaterialButton;
 import androidx.appcompat.app.AppCompatDelegate;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import android.content.Intent;
+import android.app.ProgressDialog;
 
 public class MainActivity extends AppCompatActivity {
     private EditText etInput;
     private ImageView ivPreview;
-    private Button btnGenerate, btnSave;
-    private Bitmap generatedBitmap;
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
@@ -65,6 +67,8 @@ public class MainActivity extends AppCompatActivity {
     private Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
     private String[] alignNames = {"居中对齐", "居左对齐", "居右对齐"};
     private MaterialButtonToggleGroup groupFont, groupBg, groupAlign;
+    private FloatingActionButton fabShare;
+    private Bitmap generatedBitmap;
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
 
@@ -76,16 +80,15 @@ public class MainActivity extends AppCompatActivity {
 
         etInput = findViewById(R.id.etInput);
         ivPreview = findViewById(R.id.ivPreview);
-        btnSave = findViewById(R.id.btnSave);
         // spinnerFont = findViewById(R.id.spinnerFont); // 已废弃
         // spinnerBg = findViewById(R.id.spinnerBg); // 已废弃
         // spinnerAlign = findViewById(R.id.spinnerAlign); // 已废弃
         seekBarSize = findViewById(R.id.seekBarSize);
         tvSizeLabel = findViewById(R.id.tvSizeLabel);
-        btnClear = findViewById(R.id.btnClear);
         groupFont = findViewById(R.id.groupFont);
         groupBg = findViewById(R.id.groupBg);
         groupAlign = findViewById(R.id.groupAlign);
+        fabShare = findViewById(R.id.fabShare);
 
         // 默认字体选中平方洒脱体
         groupFont.check(R.id.btnFont2);
@@ -207,28 +210,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        btnSave.setOnClickListener(new View.OnClickListener() {
+        fabShare.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (generatedBitmap == null) {
                     Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    // Android 10 以下需要动态权限
-                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_PERMISSION);
-                        return;
-                    }
-                }
-                saveImageToGallery(generatedBitmap);
-            }
-        });
-
-        btnClear.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                etInput.setText("");
+                showSavingDialogAndSave();
             }
         });
     }
@@ -292,9 +281,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 保存图片到相册
-    private void saveImageToGallery(Bitmap bitmap) {
+    private boolean saveImageToGallery(Bitmap bitmap) {
         String fileName = "mindpic_" + System.currentTimeMillis() + ".png";
-        OutputStream fos;
+        OutputStream fos = null;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ContentValues values = new ContentValues();
@@ -312,10 +301,10 @@ public class MainActivity extends AppCompatActivity {
                 fos.flush();
                 fos.close();
             }
-            Toast.makeText(this, "图片已保存到相册", Toast.LENGTH_SHORT).show();
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "保存失败", Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
 
@@ -332,5 +321,29 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "未获得存储权限，无法保存图片", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    private void showSavingDialogAndSave() {
+        final ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setMessage("正在保存图片...");
+        dialog.setCancelable(false);
+        dialog.show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final boolean success = saveImageToGallery(generatedBitmap);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        dialog.dismiss();
+                        if (success) {
+                            Toast.makeText(MainActivity.this, "图片已保存到相册", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(MainActivity.this, "保存失败", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }
+        }).start();
     }
 } 
