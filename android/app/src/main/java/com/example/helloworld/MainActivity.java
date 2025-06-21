@@ -44,6 +44,8 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import android.content.Intent;
 import android.app.ProgressDialog;
+import android.os.Handler;
+import android.os.Looper;
 
 public class MainActivity extends AppCompatActivity {
     private EditText etInput;
@@ -71,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
     private Bitmap generatedBitmap;
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
+    private Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable generateRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,7 +113,15 @@ public class MainActivity extends AppCompatActivity {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 fontSize = progress + 30;
                 tvSizeLabel.setText("字号：" + fontSize);
-                autoGenerateImage();
+                // 防抖：延迟100ms后再生成图片
+                if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
+                generateRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        autoGenerateImage();
+                    }
+                };
+                handler.postDelayed(generateRunnable, 100);
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
