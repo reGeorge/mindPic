@@ -29,13 +29,21 @@ import java.io.OutputStream;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.ImageButton;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
+import android.graphics.Matrix;
+import java.util.ArrayList;
+import java.util.List;
+import android.text.StaticLayout;
+import android.text.TextPaint;
+import android.text.Layout;
 
 public class MainActivity extends AppCompatActivity {
     private EditText etInput;
     private ImageView ivPreview;
     private Button btnGenerate, btnSave;
     private Bitmap generatedBitmap;
-    private Spinner spinnerFont, spinnerBg;
+    private Spinner spinnerFont, spinnerBg, spinnerAlign;
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
     private String[] bgNames = {"月亮1", "月亮2", "叶子"};
@@ -43,8 +51,16 @@ public class MainActivity extends AppCompatActivity {
     private int selectedFont = 0, selectedBg = 0;
     private SeekBar seekBarSize;
     private TextView tvSizeLabel;
-    private int fontSize = 80;
+    private int fontSize = 150;
     private ImageButton btnClear;
+    private float textRotation = 0f; // 文字旋转角度
+    private float textOffsetX = 0f; // 文字X偏移
+    private float textOffsetY = 0f; // 文字Y偏移
+    private float lastTouchX = 0f, lastTouchY = 0f;
+    private boolean isDragging = false;
+    private ScaleGestureDetector scaleGestureDetector;
+    private Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
+    private String[] alignNames = {"居中对齐", "居左对齐", "居右对齐"};
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
 
@@ -55,24 +71,34 @@ public class MainActivity extends AppCompatActivity {
 
         etInput = findViewById(R.id.etInput);
         ivPreview = findViewById(R.id.ivPreview);
-        btnGenerate = findViewById(R.id.btnGenerate);
         btnSave = findViewById(R.id.btnSave);
         spinnerFont = findViewById(R.id.spinnerFont);
         spinnerBg = findViewById(R.id.spinnerBg);
+        spinnerAlign = findViewById(R.id.spinnerAlign);
         seekBarSize = findViewById(R.id.seekBarSize);
         tvSizeLabel = findViewById(R.id.tvSizeLabel);
         btnClear = findViewById(R.id.btnClear);
 
-        spinnerFont.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, fontNames));
-        spinnerBg.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, bgNames));
+        ArrayAdapter<String> fontAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, fontNames);
+        fontAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item_dark);
+        spinnerFont.setAdapter(fontAdapter);
 
+        ArrayAdapter<String> bgAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, bgNames);
+        bgAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item_dark);
+        spinnerBg.setAdapter(bgAdapter);
+
+        ArrayAdapter<String> alignAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, alignNames);
+        alignAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item_dark);
+        spinnerAlign.setAdapter(alignAdapter);
+
+        // 默认字体选中平方洒脱体
+        selectedFont = 1;
         spinnerFont.setSelection(selectedFont);
-        spinnerBg.setSelection(selectedBg);
 
-        // SeekBar设置范围 30~150
-        seekBarSize.setMax(600); // 实际范围=30+0~120=30~150
-        seekBarSize.setProgress(200); // 初始80
-        fontSize = 80;
+        // SeekBar设置范围 30~300
+        seekBarSize.setMax(270); // 实际范围=30+0~270=30~300
+        seekBarSize.setProgress(150-30); // 初始150
+        fontSize = 150;
         tvSizeLabel.setText("字号：" + fontSize);
 
         seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -102,6 +128,24 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
+        spinnerAlign.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                switch (position) {
+                    case 1:
+                        textAlign = Layout.Alignment.ALIGN_NORMAL;
+                        break;
+                    case 2:
+                        textAlign = Layout.Alignment.ALIGN_OPPOSITE;
+                        break;
+                    default:
+                        textAlign = Layout.Alignment.ALIGN_CENTER;
+                        break;
+                }
+                autoGenerateImage();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
         etInput.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -113,16 +157,57 @@ public class MainActivity extends AppCompatActivity {
         // 首次自动生成
         autoGenerateImage();
 
-        btnGenerate.setOnClickListener(new View.OnClickListener() {
+        // 设置手势检测
+        scaleGestureDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override
-            public void onClick(View v) {
-                String text = etInput.getText().toString().trim();
-                if (TextUtils.isEmpty(text)) {
-                    Toast.makeText(MainActivity.this, "请输入描述", Toast.LENGTH_SHORT).show();
-                    return;
+            public boolean onScale(ScaleGestureDetector detector) {
+                // 双指缩放时旋转文字
+                float rotation = detector.getScaleFactor() > 1 ? 5f : -5f;
+                textRotation += rotation;
+                autoGenerateImage();
+                return true;
+            }
+        });
+
+        // 设置触摸事件
+        ivPreview.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                scaleGestureDetector.onTouchEvent(event);
+
+                // Map view coordinates to bitmap coordinates for accurate dragging
+                final float[] points = new float[] { event.getX(), event.getY() };
+                Matrix inverse = new Matrix();
+                ivPreview.getImageMatrix().invert(inverse);
+                inverse.mapPoints(points);
+                final float bitmapX = points[0];
+                final float bitmapY = points[1];
+
+                switch (event.getAction() & MotionEvent.ACTION_MASK) {
+                    case MotionEvent.ACTION_DOWN:
+                        if (event.getPointerCount() == 1) {
+                            lastTouchX = bitmapX;
+                            lastTouchY = bitmapY;
+                            isDragging = true;
+                        }
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        if (isDragging && event.getPointerCount() == 1) {
+                            float deltaX = bitmapX - lastTouchX;
+                            float deltaY = bitmapY - lastTouchY;
+                            textOffsetX += deltaX;
+                            textOffsetY += deltaY;
+                            lastTouchX = bitmapX;
+                            lastTouchY = bitmapY;
+                            autoGenerateImage();
+                        }
+                        break;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        isDragging = false;
+                        break;
                 }
-                generatedBitmap = generateImage(text);
-                Glide.with(MainActivity.this).load(generatedBitmap).into(ivPreview);
+                return true;
             }
         });
 
@@ -133,13 +218,15 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                         ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_PERMISSION);
-                        return;
+                    } else {
+                        saveImageToGallery(generatedBitmap);
                     }
+                } else {
+                    saveImageToGallery(generatedBitmap);
                 }
-                saveImageToGallery(generatedBitmap);
             }
         });
 
@@ -172,24 +259,39 @@ public class MainActivity extends AppCompatActivity {
         canvas.drawBitmap(bg, 0, 0, null);
 
         // 2. 加载字体
-        Typeface typeface = Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]);
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setTypeface(typeface);
-        paint.setTextSize(fontSize);
-        paint.setColor(0xFFFFFFFF); // 白色
-        paint.setShadowLayer(8, 4, 4, 0x80000000);
-        paint.setTextSkewX(-0.2f); // 微微倾斜
+        TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setTypeface(Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]));
+        textPaint.setTextSize(fontSize);
+        textPaint.setColor(0xFFFFFFFF); // 白色
+        textPaint.setShadowLayer(8, 4, 4, 0x80000000);
+        textPaint.setTextSkewX(-0.2f); // 微微倾斜
 
-        // 3. 多行自动换行绘制
-        String[] lines = text.split("\\n");
-        float totalHeight = lines.length * (paint.getFontSpacing());
-        float y = (bg.getHeight() - totalHeight) / 2 + Math.abs(paint.ascent());
-        for (String line : lines) {
-            float textWidth = paint.measureText(line);
-            float x = (bg.getWidth() - textWidth) / 2;
-            canvas.drawText(line, x, y, paint);
-            y += paint.getFontSpacing();
-        }
+        // 3. 多行自动换行绘制（支持旋转、偏移和自定义行间距）
+        String processedText = text.replace(",", ",\n")
+                                   .replace("，", "，\n")
+                                   .replace(".", ".\n")
+                                   .replace("。", "。\n");
+
+        int padding = 64;
+        int textBlockWidth = bg.getWidth() - padding;
+        
+        StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
+                .setAlignment(textAlign)
+                .setLineSpacing(0f, 2.0f)
+                .setIncludePad(true)
+                .build();
+
+        canvas.save();
+        float layoutX = (bg.getWidth() - textBlockWidth) / 2f + textOffsetX;
+        float layoutY = (bg.getHeight() - staticLayout.getHeight()) / 2f + textOffsetY;
+        
+        float rotationPivotX = layoutX + textBlockWidth / 2f;
+        float rotationPivotY = layoutY + staticLayout.getHeight() / 2f;
+        canvas.rotate(textRotation, rotationPivotX, rotationPivotY);
+        
+        canvas.translate(layoutX, layoutY);
+        staticLayout.draw(canvas);
+        canvas.restore();
 
         return result;
     }
