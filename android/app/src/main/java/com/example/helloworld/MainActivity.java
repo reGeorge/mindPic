@@ -37,13 +37,16 @@ import java.util.List;
 import android.text.StaticLayout;
 import android.text.TextPaint;
 import android.text.Layout;
+import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.button.MaterialButton;
+import androidx.appcompat.app.AppCompatDelegate;
 
 public class MainActivity extends AppCompatActivity {
     private EditText etInput;
     private ImageView ivPreview;
     private Button btnGenerate, btnSave;
     private Bitmap generatedBitmap;
-    private Spinner spinnerFont, spinnerBg, spinnerAlign;
+    // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
     private String[] bgNames = {"月亮1", "月亮2", "叶子"};
@@ -61,39 +64,36 @@ public class MainActivity extends AppCompatActivity {
     private ScaleGestureDetector scaleGestureDetector;
     private Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
     private String[] alignNames = {"居中对齐", "居左对齐", "居右对齐"};
+    private MaterialButtonToggleGroup groupFont, groupBg, groupAlign;
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO); // 强制浅色模式
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         etInput = findViewById(R.id.etInput);
         ivPreview = findViewById(R.id.ivPreview);
         btnSave = findViewById(R.id.btnSave);
-        spinnerFont = findViewById(R.id.spinnerFont);
-        spinnerBg = findViewById(R.id.spinnerBg);
-        spinnerAlign = findViewById(R.id.spinnerAlign);
+        // spinnerFont = findViewById(R.id.spinnerFont); // 已废弃
+        // spinnerBg = findViewById(R.id.spinnerBg); // 已废弃
+        // spinnerAlign = findViewById(R.id.spinnerAlign); // 已废弃
         seekBarSize = findViewById(R.id.seekBarSize);
         tvSizeLabel = findViewById(R.id.tvSizeLabel);
         btnClear = findViewById(R.id.btnClear);
-
-        ArrayAdapter<String> fontAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, fontNames);
-        fontAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item_dark);
-        spinnerFont.setAdapter(fontAdapter);
-
-        ArrayAdapter<String> bgAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, bgNames);
-        bgAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item_dark);
-        spinnerBg.setAdapter(bgAdapter);
-
-        ArrayAdapter<String> alignAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, alignNames);
-        alignAdapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item_dark);
-        spinnerAlign.setAdapter(alignAdapter);
+        groupFont = findViewById(R.id.groupFont);
+        groupBg = findViewById(R.id.groupBg);
+        groupAlign = findViewById(R.id.groupAlign);
 
         // 默认字体选中平方洒脱体
+        groupFont.check(R.id.btnFont2);
+        groupBg.check(R.id.btnBg1);
+        groupAlign.check(R.id.btnAlignCenter);
         selectedFont = 1;
-        spinnerFont.setSelection(selectedFont);
+        selectedBg = 0;
+        textAlign = Layout.Alignment.ALIGN_CENTER;
 
         // SeekBar设置范围 30~300
         seekBarSize.setMax(270); // 实际范围=30+0~270=30~300
@@ -112,39 +112,35 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        spinnerFont.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        groupFont.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                selectedFont = position;
+            public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
+                if (!isChecked) return;
+                if (checkedId == findViewById(R.id.btnFont1).getId()) selectedFont = 0;
+                else if (checkedId == findViewById(R.id.btnFont2).getId()) selectedFont = 1;
+                else if (checkedId == findViewById(R.id.btnFont3).getId()) selectedFont = 2;
                 autoGenerateImage();
             }
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
-        spinnerBg.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        groupBg.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                selectedBg = position;
+            public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
+                if (!isChecked) return;
+                if (checkedId == findViewById(R.id.btnBg1).getId()) selectedBg = 0;
+                else if (checkedId == findViewById(R.id.btnBg2).getId()) selectedBg = 1;
+                else if (checkedId == findViewById(R.id.btnBg3).getId()) selectedBg = 2;
                 autoGenerateImage();
             }
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
-        spinnerAlign.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        groupAlign.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                switch (position) {
-                    case 1:
-                        textAlign = Layout.Alignment.ALIGN_NORMAL;
-                        break;
-                    case 2:
-                        textAlign = Layout.Alignment.ALIGN_OPPOSITE;
-                        break;
-                    default:
-                        textAlign = Layout.Alignment.ALIGN_CENTER;
-                        break;
-                }
+            public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
+                if (!isChecked) return;
+                if (checkedId == findViewById(R.id.btnAlignCenter).getId()) textAlign = Layout.Alignment.ALIGN_CENTER;
+                else if (checkedId == findViewById(R.id.btnAlignLeft).getId()) textAlign = Layout.Alignment.ALIGN_NORMAL;
+                else if (checkedId == findViewById(R.id.btnAlignRight).getId()) textAlign = Layout.Alignment.ALIGN_OPPOSITE;
                 autoGenerateImage();
             }
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
         etInput.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
