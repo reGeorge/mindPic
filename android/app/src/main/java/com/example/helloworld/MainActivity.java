@@ -298,11 +298,8 @@ public class MainActivity extends AppCompatActivity {
         textPaint.setTextSkewX(-0.2f); // 微微倾斜
 
         // 3. 多行自动换行绘制（支持旋转、偏移和自定义行间距）
-        String processedText = text.replace(",", ",\n")
-                                   .replace("，", "，\n")
-                                   .replace(".", ".\n")
-                                   .replace("。", "。\n");
-
+        String processedText = text;
+        
         int padding = 64;
         int textBlockWidth = bg.getWidth() - padding;
         
