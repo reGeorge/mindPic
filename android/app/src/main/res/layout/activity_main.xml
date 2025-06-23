@@ -7,19 +7,60 @@
     android:background="#F5F5F5"
     tools:context=".MainActivity">
 
-    <!-- 顶部标题栏 -->
-    <TextView
-        android:id="@+id/tvTitle"
+    <!-- 顶部标题栏（含保存按钮） -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/titleBar"
         android:layout_width="0dp"
         android:layout_height="56dp"
         android:background="#2196F3"
-        android:text="mindPic"
-        android:textColor="#FFFFFF"
-        android:textSize="20sp"
-        android:gravity="center"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent" />
+        app:layout_constraintRight_toRightOf="parent">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="mindPic"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:gravity="center_vertical"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toLeftOf="@id/btnSave"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintHorizontal_bias="0.5"/>
+
+        <ImageButton
+            android:id="@+id/btnSave"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_save"
+            android:tint="#FFFFFF"
+            android:contentDescription="保存图片"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginRight="8dp"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- 图片预览区域（支持手势） -->
+    <ImageView
+        android:id="@+id/ivPreview"
+        android:layout_width="0dp"
+        android:layout_height="180dp"
+        android:scaleType="centerCrop"
+        android:src="@android:drawable/ic_menu_gallery"
+        android:background="#EEEEEE"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintTop_toBottomOf="@id/titleBar"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        android:layout_marginTop="24dp"
+        android:layout_marginLeft="32dp"
+        android:layout_marginRight="32dp" />
 
     <!-- 输入框和一键清空按钮容器 -->
     <com.google.android.material.textfield.TextInputLayout
@@ -27,7 +68,7 @@
         style="@style/Widget.MindPic.TextInputLayout.OutlinedBox"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        app:layout_constraintTop_toBottomOf="@id/ivPreview"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         android:layout_marginTop="32dp"
@@ -184,36 +225,32 @@
         android:layout_marginRight="32dp"
         android:progressTint="@color/colorPrimary" />
 
-    <!-- 图片预览区域（支持手势） -->
-    <ImageView
-        android:id="@+id/ivPreview"
-        android:layout_width="0dp"
-        android:layout_height="180dp"
-        android:scaleType="centerCrop"
-        android:src="@android:drawable/ic_menu_gallery"
-        android:background="#EEEEEE"
-        android:clickable="true"
-        android:focusable="true"
-        app:layout_constraintTop_toBottomOf="@id/seekBarSize"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        android:layout_marginTop="24dp"
-        android:layout_marginLeft="32dp"
-        android:layout_marginRight="32dp" />
-
-    <!-- 悬浮分享按钮 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabShare"
+    <TextView
+        android:id="@+id/tvOffsetXLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:src="@android:drawable/ic_menu_save"
-        app:backgroundTint="@color/colorPrimary"
-        app:tint="@android:color/white"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:text="水平偏移：0"
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@id/seekBarSize"
+        app:layout_constraintLeft_toLeftOf="parent"
+        android:layout_marginTop="16dp"
+        android:layout_marginLeft="32dp" />
+
+    <SeekBar
+        android:id="@+id/seekBarOffsetX"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:max="600"
+        android:progress="300"
+        app:layout_constraintTop_toBottomOf="@id/tvOffsetXLabel"
+        app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        android:layout_marginBottom="48dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginLeft="32dp"
         android:layout_marginRight="32dp"
-        android:contentDescription="保存图片" />
+        android:progressTint="@color/colorPrimary" />
+
+    <!-- 悬浮分享按钮 -->
 
     <!-- 底部版本号 -->
     <TextView
@@ -228,4 +265,4 @@
         app:layout_constraintRight_toRightOf="parent"
         android:layout_marginBottom="16dp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout> 
+</androidx.constraintlayout.widget.ConstraintLayout>

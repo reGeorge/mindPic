@@ -32,7 +32,6 @@ import android.widget.ImageButton;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.graphics.Matrix;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import java.util.ArrayList;
 import java.util.List;
 import android.text.StaticLayout;
@@ -49,9 +48,6 @@ import android.os.Handler;
 import android.os.Looper;
 
 public class MainActivity extends AppCompatActivity {
-    private ConstraintLayout titleBar;
-    private TextView tvTitle;
-    private ImageButton btnSave;
     private EditText etInput;
     private ImageView ivPreview;
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
@@ -73,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
     private String[] alignNames = {"居中对齐", "居左对齐", "居右对齐"};
     private MaterialButtonToggleGroup groupFont, groupBg, groupAlign;
+    private FloatingActionButton fabShare;
     private Bitmap generatedBitmap;
     private SeekBar seekBarOffsetX;
     private TextView tvOffsetXLabel;
@@ -89,10 +86,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 初始化UI组件
-        titleBar = findViewById(R.id.titleBar);
-        tvTitle = findViewById(R.id.tvTitle);
-        btnSave = findViewById(R.id.btnSave);
         etInput = findViewById(R.id.etInput);
         ivPreview = findViewById(R.id.ivPreview);
         seekBarSize = findViewById(R.id.seekBarSize);
@@ -100,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
         groupFont = findViewById(R.id.groupFont);
         groupBg = findViewById(R.id.groupBg);
         groupAlign = findViewById(R.id.groupAlign);
+        fabShare = findViewById(R.id.fabShare);
         seekBarOffsetX = findViewById(R.id.seekBarOffsetX);
         tvOffsetXLabel = findViewById(R.id.tvOffsetXLabel);
         seekBarOffsetX.setMax(maxOffsetX * 2); // 允许负偏移
@@ -107,19 +101,6 @@ public class MainActivity extends AppCompatActivity {
         offsetXProgress = 0;
         tvOffsetXLabel.setText("水平偏移：" + offsetXProgress);
 
-        // 保存按钮
-        btnSave.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (generatedBitmap == null) {
-                    Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                showSavingDialogAndSave();
-            }
-        });
-
-        // 水平偏移
         seekBarOffsetX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -267,6 +248,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        fabShare.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (generatedBitmap == null) {
+                    Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                showSavingDialogAndSave();
+            }
+        });
     }
 
     // 自动生成图片并预览
