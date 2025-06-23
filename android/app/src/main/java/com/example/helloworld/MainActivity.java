@@ -48,6 +48,28 @@ import android.app.ProgressDialog;
 import android.os.Handler;
 import android.os.Looper;
 
+// 新建 SegmentData 类
+class SegmentData {
+    String text;
+    int selectedFont = 1;
+    int selectedBg = 0;
+    int fontSize = 200;
+    float textOffsetX = 0f, textOffsetY = 0f, textRotation = 0f;
+    int offsetXProgress = 0;
+    Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
+    SegmentData(String text, int index) {
+        this.text = text;
+        this.fontSize = 200;
+        if (index == 0) {
+            this.textAlign = Layout.Alignment.ALIGN_CENTER;
+            this.offsetXProgress = 0;
+        } else {
+            this.textAlign = Layout.Alignment.ALIGN_NORMAL;
+            this.offsetXProgress = 0; // 左对齐时初始为0
+        }
+    }
+}
+
 public class MainActivity extends AppCompatActivity {
     private ConstraintLayout titleBar;
     private TextView tvTitle;
@@ -57,8 +79,8 @@ public class MainActivity extends AppCompatActivity {
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
-    private String[] bgNames = {"月亮1", "月亮2", "叶子"};
-    private int[] bgResIds = {R.drawable.moon1, R.drawable.moon2, R.drawable.leaf};
+    private String[] bgNames = {"叶子","月亮1", "月亮2"};
+    private int[] bgResIds = { R.drawable.leaf,R.drawable.moon1, R.drawable.moon2};
     private int selectedFont = 0, selectedBg = 0;
     private SeekBar seekBarSize;
     private TextView tvSizeLabel;
@@ -71,17 +93,23 @@ public class MainActivity extends AppCompatActivity {
     private boolean isDragging = false;
     private ScaleGestureDetector scaleGestureDetector;
     private Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
-    private String[] alignNames = {"居中对齐", "居左对齐", "居右对齐"};
+    private String[] alignNames = {"居左对齐", "居中对齐", "居右对齐"};
     private MaterialButtonToggleGroup groupFont, groupBg, groupAlign;
     private Bitmap generatedBitmap;
     private SeekBar seekBarOffsetX;
     private TextView tvOffsetXLabel;
     private int offsetXProgress = 0; // SeekBar的进度
-    private int maxOffsetX = 600; // 最大偏移像素
+    private int maxOffsetX = 1200; // 最大偏移像素
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
     private Handler handler = new Handler(Looper.getMainLooper());
     private Runnable generateRunnable;
+
+    private List<SegmentData> segmentList = new ArrayList<>();
+    private int currentSegmentIndex = 0;
+
+    private Button btnPrevSegment, btnNextSegment;
+    private TextView tvSegmentIndicator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,6 +135,10 @@ public class MainActivity extends AppCompatActivity {
         offsetXProgress = 0;
         tvOffsetXLabel.setText("水平偏移：" + offsetXProgress);
 
+        btnPrevSegment = findViewById(R.id.btnPrevSegment);
+        btnNextSegment = findViewById(R.id.btnNextSegment);
+        tvSegmentIndicator = findViewById(R.id.tvSegmentIndicator);
+
         // 保存按钮
         btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -123,17 +155,19 @@ public class MainActivity extends AppCompatActivity {
         seekBarOffsetX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                offsetXProgress = progress - maxOffsetX; // 允许负值
-                tvOffsetXLabel.setText("水平偏移：" + offsetXProgress);
-                // 防抖：延迟100ms后再生成图片
-                if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
-                generateRunnable = new Runnable() {
-                    @Override
-                    public void run() {
-                        autoGenerateImage();
-                    }
-                };
-                handler.postDelayed(generateRunnable, 100);
+                if (!segmentList.isEmpty()) {
+                    SegmentData seg = segmentList.get(currentSegmentIndex);
+                    seg.offsetXProgress = progress - maxOffsetX;
+                    tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
+                    if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
+                    generateRunnable = new Runnable() {
+                        @Override
+                        public void run() {
+                            autoGenerateImageForCurrentSegment();
+                        }
+                    };
+                    handler.postDelayed(generateRunnable, 100);
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -156,17 +190,19 @@ public class MainActivity extends AppCompatActivity {
         seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                fontSize = progress + 30;
-                tvSizeLabel.setText("字号：" + fontSize);
-                // 防抖：延迟100ms后再生成图片
-                if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
-                generateRunnable = new Runnable() {
-                    @Override
-                    public void run() {
-                        autoGenerateImage();
-                    }
-                };
-                handler.postDelayed(generateRunnable, 100);
+                if (!segmentList.isEmpty()) {
+                    SegmentData seg = segmentList.get(currentSegmentIndex);
+                    seg.fontSize = progress + 30;
+                    tvSizeLabel.setText("字号：" + seg.fontSize);
+                    if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
+                    generateRunnable = new Runnable() {
+                        @Override
+                        public void run() {
+                            autoGenerateImageForCurrentSegment();
+                        }
+                    };
+                    handler.postDelayed(generateRunnable, 100);
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -175,43 +211,59 @@ public class MainActivity extends AppCompatActivity {
         groupFont.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
             public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
-                if (!isChecked) return;
-                if (checkedId == findViewById(R.id.btnFont1).getId()) selectedFont = 0;
-                else if (checkedId == findViewById(R.id.btnFont2).getId()) selectedFont = 1;
-                else if (checkedId == findViewById(R.id.btnFont3).getId()) selectedFont = 2;
-                autoGenerateImage();
+                if (!isChecked || segmentList.isEmpty()) return;
+                SegmentData seg = segmentList.get(currentSegmentIndex);
+                if (checkedId == findViewById(R.id.btnFont1).getId()) seg.selectedFont = 0;
+                else if (checkedId == findViewById(R.id.btnFont2).getId()) seg.selectedFont = 1;
+                else if (checkedId == findViewById(R.id.btnFont3).getId()) seg.selectedFont = 2;
+                autoGenerateImageForCurrentSegment();
             }
         });
         groupBg.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
             public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
-                if (!isChecked) return;
-                if (checkedId == findViewById(R.id.btnBg1).getId()) selectedBg = 0;
-                else if (checkedId == findViewById(R.id.btnBg2).getId()) selectedBg = 1;
-                else if (checkedId == findViewById(R.id.btnBg3).getId()) selectedBg = 2;
-                autoGenerateImage();
+                if (!isChecked || segmentList.isEmpty()) return;
+                SegmentData seg = segmentList.get(currentSegmentIndex);
+                if (checkedId == findViewById(R.id.btnBg1).getId()) seg.selectedBg = 0;
+                else if (checkedId == findViewById(R.id.btnBg2).getId()) seg.selectedBg = 1;
+                else if (checkedId == findViewById(R.id.btnBg3).getId()) seg.selectedBg = 2;
+                autoGenerateImageForCurrentSegment();
             }
         });
         groupAlign.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
             public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
-                if (!isChecked) return;
-                if (checkedId == findViewById(R.id.btnAlignCenter).getId()) textAlign = Layout.Alignment.ALIGN_CENTER;
-                else if (checkedId == findViewById(R.id.btnAlignLeft).getId()) textAlign = Layout.Alignment.ALIGN_NORMAL;
-                else if (checkedId == findViewById(R.id.btnAlignRight).getId()) textAlign = Layout.Alignment.ALIGN_OPPOSITE;
-                autoGenerateImage();
+                if (!isChecked || segmentList.isEmpty()) return;
+                SegmentData seg = segmentList.get(currentSegmentIndex);
+                if (checkedId == findViewById(R.id.btnAlignCenter).getId()) {
+                    seg.textAlign = Layout.Alignment.ALIGN_CENTER;
+                    seg.offsetXProgress = 0;
+                } else if (checkedId == findViewById(R.id.btnAlignLeft).getId()) {
+                    seg.textAlign = Layout.Alignment.ALIGN_NORMAL;
+                    seg.offsetXProgress = 0;
+                } else if (checkedId == findViewById(R.id.btnAlignRight).getId()) {
+                    seg.textAlign = Layout.Alignment.ALIGN_OPPOSITE;
+                    seg.offsetXProgress = 0;
+                }
+                autoGenerateImageForCurrentSegment();
             }
         });
         etInput.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                autoGenerateImage();
+                String[] segments = s.toString().split("\\n\\n+");
+                segmentList.clear();
+                for (int i = 0; i < segments.length; i++) {
+                    segmentList.add(new SegmentData(segments[i].trim(), i));
+                }
+                currentSegmentIndex = 0;
+                updateSegmentUI();
             }
             @Override public void afterTextChanged(android.text.Editable s) {}
         });
 
         // 首次自动生成
-        autoGenerateImage();
+        autoGenerateImageForCurrentSegment();
 
         // 设置手势检测
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -220,7 +272,7 @@ public class MainActivity extends AppCompatActivity {
                 // 双指缩放时旋转文字
                 float rotation = detector.getScaleFactor() > 1 ? 5f : -5f;
                 textRotation += rotation;
-                autoGenerateImage();
+                autoGenerateImageForCurrentSegment();
                 return true;
             }
         });
@@ -255,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
                             textOffsetY += deltaY;
                             lastTouchX = bitmapX;
                             lastTouchY = bitmapY;
-                            autoGenerateImage();
+                            autoGenerateImageForCurrentSegment();
                         }
                         break;
                     case MotionEvent.ACTION_UP:
@@ -267,22 +319,47 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        btnPrevSegment.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (currentSegmentIndex > 0) {
+                    currentSegmentIndex--;
+                    updateSegmentUI();
+                }
+            }
+        });
+        btnNextSegment.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (currentSegmentIndex < segmentList.size() - 1) {
+                    currentSegmentIndex++;
+                    updateSegmentUI();
+                }
+            }
+        });
+
+        updateSegmentUI(); // 首次初始化
     }
 
-    // 自动生成图片并预览
-    private void autoGenerateImage() {
-        String text = etInput.getText().toString().trim();
-        if (TextUtils.isEmpty(text)) {
-            ivPreview.setImageResource(R.drawable.moon1);
+    // 渲染当前段落图片
+    private void autoGenerateImageForCurrentSegment() {
+        if (segmentList.isEmpty()) {
+            ivPreview.setImageResource(R.drawable.leaf);
             generatedBitmap = null;
             return;
         }
-        generatedBitmap = generateImage(text);
+        SegmentData seg = segmentList.get(currentSegmentIndex);
+        if (TextUtils.isEmpty(seg.text)) {
+            ivPreview.setImageResource(R.drawable.leaf);
+            generatedBitmap = null;
+            return;
+        }
+        generatedBitmap = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
         Glide.with(MainActivity.this).load(generatedBitmap).into(ivPreview);
     }
 
-    // 合成图片：背景+文字+字体
-    private Bitmap generateImage(String text) {
+    // 修改 generateImage 方法参数
+    private Bitmap generateImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
         // 1. 加载背景图片
         Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
         Bitmap result = Bitmap.createBitmap(bg.getWidth(), bg.getHeight(), Bitmap.Config.ARGB_8888);
@@ -299,10 +376,8 @@ public class MainActivity extends AppCompatActivity {
 
         // 3. 多行自动换行绘制（支持旋转、偏移和自定义行间距）
         String processedText = text;
-        
         int padding = 64;
-        int textBlockWidth = bg.getWidth() - padding;
-        
+        int textBlockWidth = bg.getWidth() - 2 * padding;
         StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
                 .setAlignment(textAlign)
                 .setLineSpacing(0f, 2.0f)
@@ -310,17 +385,23 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         canvas.save();
-        float layoutX = (bg.getWidth() - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
+        float layoutX;
+        if (textAlign == Layout.Alignment.ALIGN_CENTER) {
+            layoutX = (bg.getWidth() - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
+        } else if (textAlign == Layout.Alignment.ALIGN_NORMAL) { // 左对齐
+            layoutX = padding + textOffsetX + offsetXProgress;
+        } else if (textAlign == Layout.Alignment.ALIGN_OPPOSITE) { // 右对齐
+            layoutX = bg.getWidth() - padding - textBlockWidth + textOffsetX + offsetXProgress;
+        } else {
+            layoutX = (bg.getWidth() - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
+        }
         float layoutY = (bg.getHeight() - staticLayout.getHeight()) / 2f + textOffsetY;
-        
         float rotationPivotX = layoutX + textBlockWidth / 2f;
         float rotationPivotY = layoutY + staticLayout.getHeight() / 2f;
         canvas.rotate(textRotation, rotationPivotX, rotationPivotY);
-        
         canvas.translate(layoutX, layoutY);
         staticLayout.draw(canvas);
         canvas.restore();
-
         return result;
     }
 
@@ -389,5 +470,37 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+
+    private void updateSegmentUI() {
+        autoGenerateImageForCurrentSegment();
+        tvSegmentIndicator.setText((currentSegmentIndex + 1) + "/" + (segmentList.size() == 0 ? 1 : segmentList.size()));
+        if (!segmentList.isEmpty()) {
+            SegmentData seg = segmentList.get(currentSegmentIndex);
+            // 字体
+            int fontBtnId = R.id.btnFont2;
+            if (seg.selectedFont == 0) fontBtnId = R.id.btnFont1;
+            else if (seg.selectedFont == 1) fontBtnId = R.id.btnFont2;
+            else if (seg.selectedFont == 2) fontBtnId = R.id.btnFont3;
+            groupFont.check(fontBtnId);
+            // 背景
+            int bgBtnId = R.id.btnBg1;
+            if (seg.selectedBg == 0) bgBtnId = R.id.btnBg1;
+            else if (seg.selectedBg == 1) bgBtnId = R.id.btnBg2;
+            else if (seg.selectedBg == 2) bgBtnId = R.id.btnBg3;
+            groupBg.check(bgBtnId);
+            // 字号
+            seekBarSize.setProgress(seg.fontSize - 30);
+            tvSizeLabel.setText("字号：" + seg.fontSize);
+            // 水平偏移
+            seekBarOffsetX.setProgress(seg.offsetXProgress + maxOffsetX);
+            tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
+            // 对齐方式
+            int alignBtnId = R.id.btnAlignCenter;
+            if (seg.textAlign == Layout.Alignment.ALIGN_CENTER) alignBtnId = R.id.btnAlignCenter;
+            else if (seg.textAlign == Layout.Alignment.ALIGN_NORMAL) alignBtnId = R.id.btnAlignLeft;
+            else if (seg.textAlign == Layout.Alignment.ALIGN_OPPOSITE) alignBtnId = R.id.btnAlignRight;
+            groupAlign.check(alignBtnId);
+        }
     }
 } 
