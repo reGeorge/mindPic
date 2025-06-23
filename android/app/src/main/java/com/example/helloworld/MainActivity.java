@@ -376,7 +376,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 3. 多行自动换行绘制（支持旋转、偏移和自定义行间距）
         String processedText = text;
-        int padding = 64;
+        int padding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? 64 : 320;
         int textBlockWidth = bg.getWidth() - 2 * padding;
         StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
                 .setAlignment(textAlign)
