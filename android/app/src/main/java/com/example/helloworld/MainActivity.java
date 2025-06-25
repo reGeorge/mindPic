@@ -48,6 +48,9 @@ import android.app.ProgressDialog;
 import android.os.Handler;
 import android.os.Looper;
 import android.graphics.Rect;
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
+import com.google.android.material.slider.Slider;
+import com.google.android.material.appbar.MaterialToolbar;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -72,9 +75,7 @@ class SegmentData {
 }
 
 public class MainActivity extends AppCompatActivity {
-    private ConstraintLayout titleBar;
-    private TextView tvTitle;
-    private ImageButton btnSave;
+    private FloatingActionButton btnSave;
     private EditText etInput;
     private ImageView ivPreview;
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
@@ -83,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
     private String[] bgNames = {"月亮1","叶子", "月亮2"};
     private int[] bgResIds = { R.drawable.leaf,R.drawable.moon1, R.drawable.moon2};
     private int selectedFont = 0, selectedBg = 0;
-    private SeekBar seekBarSize;
+    private Slider seekBarSize;
     private TextView tvSizeLabel;
     private int fontSize = 150;
     private ImageButton btnClear;
@@ -97,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
     private String[] alignNames = {"居左对齐", "居中对齐", "居右对齐"};
     private MaterialButtonToggleGroup groupFont, groupBg, groupAlign;
     private Bitmap generatedBitmap;
-    private SeekBar seekBarOffsetX;
+    private Slider seekBarOffsetX;
     private TextView tvOffsetXLabel;
     private int offsetXProgress = 0; // SeekBar的进度
     private int maxOffsetX = 1200; // 最大偏移像素
@@ -138,8 +139,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         // 初始化UI组件
-        titleBar = findViewById(R.id.titleBar);
-        tvTitle = findViewById(R.id.tvTitle);
         btnSave = findViewById(R.id.btnSave);
         etInput = findViewById(R.id.etInput);
         ivPreview = findViewById(R.id.ivPreview);
@@ -150,8 +149,9 @@ public class MainActivity extends AppCompatActivity {
         groupAlign = findViewById(R.id.groupAlign);
         seekBarOffsetX = findViewById(R.id.seekBarOffsetX);
         tvOffsetXLabel = findViewById(R.id.tvOffsetXLabel);
-        seekBarOffsetX.setMax(maxOffsetX * 2); // 允许负偏移
-        seekBarOffsetX.setProgress(maxOffsetX); // 初始居中
+        seekBarOffsetX.setValueFrom(-maxOffsetX);
+        seekBarOffsetX.setValueTo(maxOffsetX);
+        seekBarOffsetX.setValue(0);
         offsetXProgress = 0;
         tvOffsetXLabel.setText("水平偏移：" + offsetXProgress);
 
@@ -197,12 +197,12 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // 水平偏移
-        seekBarOffsetX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        seekBarOffsetX.addOnChangeListener(new Slider.OnChangeListener() {
             @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            public void onValueChange(Slider slider, float value, boolean fromUser) {
                 if (!segmentList.isEmpty()) {
                     SegmentData seg = segmentList.get(currentSegmentIndex);
-                    seg.offsetXProgress = progress - maxOffsetX;
+                    seg.offsetXProgress = (int) value;
                     tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
                     if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
                     generateRunnable = new Runnable() {
@@ -214,8 +214,6 @@ public class MainActivity extends AppCompatActivity {
                     handler.postDelayed(generateRunnable, 100);
                 }
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
         // 默认字体选中平方洒脱体
@@ -227,17 +225,18 @@ public class MainActivity extends AppCompatActivity {
         textAlign = Layout.Alignment.ALIGN_CENTER;
 
         // SeekBar设置范围 30~300
-        seekBarSize.setMax(70); // 实际范围=30+0~70=30~100
-        seekBarSize.setProgress(60-30); // 初始60
+        seekBarSize.setValueFrom(30);
+        seekBarSize.setValueTo(100);
+        seekBarSize.setValue(60);
         fontSize = 60;
         tvSizeLabel.setText("字号：" + fontSize);
 
-        seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        seekBarSize.addOnChangeListener(new Slider.OnChangeListener() {
             @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            public void onValueChange(Slider slider, float value, boolean fromUser) {
                 if (!segmentList.isEmpty()) {
                     SegmentData seg = segmentList.get(currentSegmentIndex);
-                    seg.fontSize = progress + 30;
+                    seg.fontSize = (int) value;
                     tvSizeLabel.setText("字号：" + seg.fontSize);
                     if (generateRunnable != null) handler.removeCallbacks(generateRunnable);
                     generateRunnable = new Runnable() {
@@ -249,8 +248,6 @@ public class MainActivity extends AppCompatActivity {
                     handler.postDelayed(generateRunnable, 100);
                 }
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
         groupFont.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
@@ -373,6 +370,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         updateSegmentUI(); // 首次初始化
+
+        MaterialToolbar topAppBar = findViewById(R.id.topAppBar);
+        setSupportActionBar(topAppBar);
     }
 
     // 渲染当前段落图片
@@ -546,10 +546,10 @@ public class MainActivity extends AppCompatActivity {
             else if (seg.selectedBg == 2) bgBtnId = R.id.btnBg3;
             groupBg.check(bgBtnId);
             // 字号
-            seekBarSize.setProgress(seg.fontSize - 30);
+            seekBarSize.setValue(seg.fontSize);
             tvSizeLabel.setText("字号：" + seg.fontSize);
             // 水平偏移
-            seekBarOffsetX.setProgress(seg.offsetXProgress + maxOffsetX);
+            seekBarOffsetX.setValue(seg.offsetXProgress);
             tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
             // 对齐方式
             int alignBtnId = R.id.btnAlignCenter;
