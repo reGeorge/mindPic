@@ -47,25 +47,26 @@ import android.content.Intent;
 import android.app.ProgressDialog;
 import android.os.Handler;
 import android.os.Looper;
+import android.graphics.Rect;
 
 // 新建 SegmentData 类
 class SegmentData {
     String text;
     int selectedFont = 1;
     int selectedBg = 0;
-    int fontSize = 200;
+    int fontSize = 60;
     float textOffsetX = 0f, textOffsetY = 0f, textRotation = 0f;
     int offsetXProgress = 0;
     Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
     SegmentData(String text, int index) {
         this.text = text;
-        this.fontSize = 200;
+        this.fontSize = 60;
         if (index == 0) {
             this.textAlign = Layout.Alignment.ALIGN_CENTER;
             this.offsetXProgress = 0;
         } else {
             this.textAlign = Layout.Alignment.ALIGN_NORMAL;
-            this.offsetXProgress = 0; // 左对齐时初始为0
+            this.offsetXProgress = 0;
         }
     }
 }
@@ -79,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
-    private String[] bgNames = {"叶子","月亮1", "月亮2"};
+    private String[] bgNames = {"月亮1","叶子", "月亮2"};
     private int[] bgResIds = { R.drawable.leaf,R.drawable.moon1, R.drawable.moon2};
     private int selectedFont = 0, selectedBg = 0;
     private SeekBar seekBarSize;
@@ -101,6 +102,10 @@ public class MainActivity extends AppCompatActivity {
     private int offsetXProgress = 0; // SeekBar的进度
     private int maxOffsetX = 1200; // 最大偏移像素
 
+    private ImageButton btnToggleExpand;
+    private boolean isInputExpanded = false; // 初始为折叠状态
+    private String lastInputText = ""; // 记录上次收起时的内容
+
     private static final int REQUEST_WRITE_PERMISSION = 1001;
     private Handler handler = new Handler(Looper.getMainLooper());
     private Runnable generateRunnable;
@@ -110,6 +115,21 @@ public class MainActivity extends AppCompatActivity {
 
     private Button btnPrevSegment, btnNextSegment;
     private TextView tvSegmentIndicator;
+
+    // 用 inputTextWatcher 替换原 etInput.addTextChangedListener
+    private final android.text.TextWatcher inputTextWatcher = new android.text.TextWatcher() {
+        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+        @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+            String[] segments = s.toString().split("\\n\\n+");
+            segmentList.clear();
+            for (int i = 0; i < segments.length; i++) {
+                segmentList.add(new SegmentData(segments[i].trim(), i));
+            }
+            currentSegmentIndex = 0;
+            updateSegmentUI();
+        }
+        @Override public void afterTextChanged(android.text.Editable s) {}
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,6 +158,31 @@ public class MainActivity extends AppCompatActivity {
         btnPrevSegment = findViewById(R.id.btnPrevSegment);
         btnNextSegment = findViewById(R.id.btnNextSegment);
         tvSegmentIndicator = findViewById(R.id.tvSegmentIndicator);
+
+        btnToggleExpand = findViewById(R.id.btnToggleExpand);
+        btnToggleExpand.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isInputExpanded = !isInputExpanded;
+                if (isInputExpanded) {
+                    etInput.setMaxLines(Integer.MAX_VALUE);
+                    etInput.setMinLines(10);
+                    btnToggleExpand.setImageResource(android.R.drawable.arrow_up_float); // 展开时显示收起图标
+                    lastInputText = etInput.getText().toString(); // 记录当前内容
+                    // 展开时移除TextWatcher，防止分段和渲染
+                    etInput.removeTextChangedListener(inputTextWatcher);
+                } else {
+                    etInput.setMaxLines(1);
+                    etInput.setMinLines(1);
+                    btnToggleExpand.setImageResource(android.R.drawable.arrow_down_float); // 折叠时显示展开图标
+                    // 收起时同步内容并触发分段和渲染
+                    if (!lastInputText.equals(etInput.getText().toString())) {
+                        inputTextWatcher.onTextChanged(etInput.getText(), 0, 0, etInput.getText().length());
+                    }
+                    etInput.addTextChangedListener(inputTextWatcher);
+                }
+            }
+        });
 
         // 保存按钮
         btnSave.setOnClickListener(new View.OnClickListener() {
@@ -182,9 +227,9 @@ public class MainActivity extends AppCompatActivity {
         textAlign = Layout.Alignment.ALIGN_CENTER;
 
         // SeekBar设置范围 30~300
-        seekBarSize.setMax(270); // 实际范围=30+0~270=30~300
-        seekBarSize.setProgress(150-30); // 初始150
-        fontSize = 150;
+        seekBarSize.setMax(70); // 实际范围=30+0~70=30~100
+        seekBarSize.setProgress(60-30); // 初始60
+        fontSize = 60;
         tvSizeLabel.setText("字号：" + fontSize);
 
         seekBarSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -248,19 +293,8 @@ public class MainActivity extends AppCompatActivity {
                 autoGenerateImageForCurrentSegment();
             }
         });
-        etInput.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                String[] segments = s.toString().split("\\n\\n+");
-                segmentList.clear();
-                for (int i = 0; i < segments.length; i++) {
-                    segmentList.add(new SegmentData(segments[i].trim(), i));
-                }
-                currentSegmentIndex = 0;
-                updateSegmentUI();
-            }
-            @Override public void afterTextChanged(android.text.Editable s) {}
-        });
+        // 初始化时添加监听
+        etInput.addTextChangedListener(inputTextWatcher);
 
         // 首次自动生成
         autoGenerateImageForCurrentSegment();
@@ -362,9 +396,30 @@ public class MainActivity extends AppCompatActivity {
     private Bitmap generateImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
         // 1. 加载背景图片
         Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
-        Bitmap result = Bitmap.createBitmap(bg.getWidth(), bg.getHeight(), Bitmap.Config.ARGB_8888);
+
+        // 设置固定的1:1画布大小
+        int canvasSize = 1000; 
+        Bitmap result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
-        canvas.drawBitmap(bg, 0, 0, null);
+
+        // 裁剪并居中绘制背景图到1:1画布上
+        Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
+        Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
+
+        float scaleX = (float) dstRect.width() / srcRect.width();
+        float scaleY = (float) dstRect.height() / srcRect.height();
+        float scale = Math.max(scaleX, scaleY); // 缩放以填充目标
+
+        float scaledWidth = srcRect.width() * scale;
+        float scaledHeight = srcRect.height() * scale;
+
+        float left = (dstRect.width() - scaledWidth) / 2;
+        float top = (dstRect.height() - scaledHeight) / 2;
+
+        Matrix matrix = new Matrix();
+        matrix.postScale(scale, scale);
+        matrix.postTranslate(left, top);
+        canvas.drawBitmap(bg, matrix, new Paint()); // 使用 Paint 对象
 
         // 2. 加载字体
         TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
@@ -376,26 +431,27 @@ public class MainActivity extends AppCompatActivity {
 
         // 3. 多行自动换行绘制（支持旋转、偏移和自定义行间距）
         String processedText = text;
-        int padding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? 64 : 320;
-        int textBlockWidth = bg.getWidth() - 2 * padding;
+        int minPadding = 64; // 控制换行的最小边距
+        int visualPadding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? minPadding : 120; // 视觉上左右对齐的边距更大
+        int textBlockWidth = canvasSize - 2 * minPadding; // 换行宽度始终较大
         StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
                 .setAlignment(textAlign)
-                .setLineSpacing(0f, 2.0f)
+                .setLineSpacing(0f, 2.5f)
                 .setIncludePad(true)
                 .build();
 
         canvas.save();
         float layoutX;
         if (textAlign == Layout.Alignment.ALIGN_CENTER) {
-            layoutX = (bg.getWidth() - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
+            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
         } else if (textAlign == Layout.Alignment.ALIGN_NORMAL) { // 左对齐
-            layoutX = padding + textOffsetX + offsetXProgress;
+            layoutX = visualPadding + textOffsetX + offsetXProgress;
         } else if (textAlign == Layout.Alignment.ALIGN_OPPOSITE) { // 右对齐
-            layoutX = bg.getWidth() - padding - textBlockWidth + textOffsetX + offsetXProgress;
+            layoutX = canvasSize - visualPadding - textBlockWidth + textOffsetX + offsetXProgress;
         } else {
-            layoutX = (bg.getWidth() - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
+            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
         }
-        float layoutY = (bg.getHeight() - staticLayout.getHeight()) / 2f + textOffsetY;
+        float layoutY = (canvasSize - staticLayout.getHeight()) / 2f + textOffsetY; // 使用 canvasSize
         float rotationPivotX = layoutX + textBlockWidth / 2f;
         float rotationPivotY = layoutY + staticLayout.getHeight() / 2f;
         canvas.rotate(textRotation, rotationPivotX, rotationPivotY);
