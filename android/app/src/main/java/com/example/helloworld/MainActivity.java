@@ -50,7 +50,6 @@ import android.os.Looper;
 import android.graphics.Rect;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.slider.Slider;
-import com.google.android.material.appbar.MaterialToolbar;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -370,9 +369,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         updateSegmentUI(); // 首次初始化
-
-        MaterialToolbar topAppBar = findViewById(R.id.topAppBar);
-        setSupportActionBar(topAppBar);
     }
 
     // 渲染当前段落图片
