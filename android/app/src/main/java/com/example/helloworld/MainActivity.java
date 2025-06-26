@@ -50,6 +50,8 @@ import android.os.Looper;
 import android.graphics.Rect;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.slider.Slider;
+import androidx.viewpager2.widget.ViewPager2;
+import android.widget.ImageView;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -76,7 +78,9 @@ class SegmentData {
 public class MainActivity extends AppCompatActivity {
     private FloatingActionButton btnSave;
     private EditText etInput;
-    private ImageView ivPreview;
+    private androidx.viewpager2.widget.ViewPager2 previewPager;
+    private PreviewPagerAdapter previewPagerAdapter;
+    private List<Bitmap> segmentBitmaps = new ArrayList<>();
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
@@ -113,9 +117,6 @@ public class MainActivity extends AppCompatActivity {
     private List<SegmentData> segmentList = new ArrayList<>();
     private int currentSegmentIndex = 0;
 
-    private Button btnPrevSegment, btnNextSegment;
-    private TextView tvSegmentIndicator;
-
     // 用 inputTextWatcher 替换原 etInput.addTextChangedListener
     private final android.text.TextWatcher inputTextWatcher = new android.text.TextWatcher() {
         @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -140,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
         // 初始化UI组件
         btnSave = findViewById(R.id.btnSave);
         etInput = findViewById(R.id.etInput);
-        ivPreview = findViewById(R.id.ivPreview);
+        previewPager = findViewById(R.id.previewPager);
         seekBarSize = findViewById(R.id.seekBarSize);
         tvSizeLabel = findViewById(R.id.tvSizeLabel);
         groupFont = findViewById(R.id.groupFont);
@@ -153,10 +154,6 @@ public class MainActivity extends AppCompatActivity {
         seekBarOffsetX.setValue(0);
         offsetXProgress = 0;
         tvOffsetXLabel.setText("水平偏移：" + offsetXProgress);
-
-        btnPrevSegment = findViewById(R.id.btnPrevSegment);
-        btnNextSegment = findViewById(R.id.btnNextSegment);
-        tvSegmentIndicator = findViewById(R.id.tvSegmentIndicator);
 
         btnToggleExpand = findViewById(R.id.btnToggleExpand);
         btnToggleExpand.setOnClickListener(new View.OnClickListener() {
@@ -187,7 +184,7 @@ public class MainActivity extends AppCompatActivity {
         btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (generatedBitmap == null) {
+                if (segmentBitmaps.isEmpty()) {
                     Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -207,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
                     generateRunnable = new Runnable() {
                         @Override
                         public void run() {
-                            autoGenerateImageForCurrentSegment();
+                            autoGenerateAllSegmentImages();
                         }
                     };
                     handler.postDelayed(generateRunnable, 100);
@@ -241,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
                     generateRunnable = new Runnable() {
                         @Override
                         public void run() {
-                            autoGenerateImageForCurrentSegment();
+                            autoGenerateAllSegmentImages();
                         }
                     };
                     handler.postDelayed(generateRunnable, 100);
@@ -257,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
                 if (checkedId == findViewById(R.id.btnFont1).getId()) seg.selectedFont = 0;
                 else if (checkedId == findViewById(R.id.btnFont2).getId()) seg.selectedFont = 1;
                 else if (checkedId == findViewById(R.id.btnFont3).getId()) seg.selectedFont = 2;
-                autoGenerateImageForCurrentSegment();
+                autoGenerateAllSegmentImages();
             }
         });
         groupBg.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
@@ -268,7 +265,7 @@ public class MainActivity extends AppCompatActivity {
                 if (checkedId == findViewById(R.id.btnBg1).getId()) seg.selectedBg = 0;
                 else if (checkedId == findViewById(R.id.btnBg2).getId()) seg.selectedBg = 1;
                 else if (checkedId == findViewById(R.id.btnBg3).getId()) seg.selectedBg = 2;
-                autoGenerateImageForCurrentSegment();
+                autoGenerateAllSegmentImages();
             }
         });
         groupAlign.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
@@ -286,14 +283,18 @@ public class MainActivity extends AppCompatActivity {
                     seg.textAlign = Layout.Alignment.ALIGN_OPPOSITE;
                     seg.offsetXProgress = 0;
                 }
-                autoGenerateImageForCurrentSegment();
+                autoGenerateAllSegmentImages();
             }
         });
         // 初始化时添加监听
         etInput.addTextChangedListener(inputTextWatcher);
 
+        // 适配器类
+        previewPagerAdapter = new PreviewPagerAdapter();
+        previewPager.setAdapter(previewPagerAdapter);
+
         // 首次自动生成
-        autoGenerateImageForCurrentSegment();
+        autoGenerateAllSegmentImages();
 
         // 设置手势检测
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -302,90 +303,36 @@ public class MainActivity extends AppCompatActivity {
                 // 双指缩放时旋转文字
                 float rotation = detector.getScaleFactor() > 1 ? 5f : -5f;
                 textRotation += rotation;
-                autoGenerateImageForCurrentSegment();
+                autoGenerateAllSegmentImages();
                 return true;
             }
         });
 
-        // 设置触摸事件
-        ivPreview.setOnTouchListener(new View.OnTouchListener() {
+        // ViewPager2 滑动监听同步 currentSegmentIndex 和参数区
+        previewPager.registerOnPageChangeCallback(new androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
             @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                scaleGestureDetector.onTouchEvent(event);
-
-                // Map view coordinates to bitmap coordinates for accurate dragging
-                final float[] points = new float[] { event.getX(), event.getY() };
-                Matrix inverse = new Matrix();
-                ivPreview.getImageMatrix().invert(inverse);
-                inverse.mapPoints(points);
-                final float bitmapX = points[0];
-                final float bitmapY = points[1];
-
-                switch (event.getAction() & MotionEvent.ACTION_MASK) {
-                    case MotionEvent.ACTION_DOWN:
-                        if (event.getPointerCount() == 1) {
-                            lastTouchX = bitmapX;
-                            lastTouchY = bitmapY;
-                            isDragging = true;
-                        }
-                        break;
-                    case MotionEvent.ACTION_MOVE:
-                        if (isDragging && event.getPointerCount() == 1) {
-                            float deltaX = bitmapX - lastTouchX;
-                            float deltaY = bitmapY - lastTouchY;
-                            textOffsetX += deltaX;
-                            textOffsetY += deltaY;
-                            lastTouchX = bitmapX;
-                            lastTouchY = bitmapY;
-                            autoGenerateImageForCurrentSegment();
-                        }
-                        break;
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        isDragging = false;
-                        break;
-                }
-                return true;
-            }
-        });
-
-        btnPrevSegment.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (currentSegmentIndex > 0) {
-                    currentSegmentIndex--;
+            public void onPageSelected(int position) {
+                super.onPageSelected(position);
+                if (position < segmentList.size()) {
+                    currentSegmentIndex = position;
                     updateSegmentUI();
                 }
             }
         });
-        btnNextSegment.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (currentSegmentIndex < segmentList.size() - 1) {
-                    currentSegmentIndex++;
-                    updateSegmentUI();
-                }
-            }
-        });
-
-        updateSegmentUI(); // 首次初始化
     }
 
     // 渲染当前段落图片
     private void autoGenerateImageForCurrentSegment() {
         if (segmentList.isEmpty()) {
-            ivPreview.setImageResource(R.drawable.leaf);
             generatedBitmap = null;
             return;
         }
         SegmentData seg = segmentList.get(currentSegmentIndex);
         if (TextUtils.isEmpty(seg.text)) {
-            ivPreview.setImageResource(R.drawable.leaf);
             generatedBitmap = null;
             return;
         }
         generatedBitmap = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
-        Glide.with(MainActivity.this).load(generatedBitmap).into(ivPreview);
     }
 
     // 修改 generateImage 方法参数
@@ -526,33 +473,56 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateSegmentUI() {
         autoGenerateImageForCurrentSegment();
-        tvSegmentIndicator.setText((currentSegmentIndex + 1) + "/" + (segmentList.size() == 0 ? 1 : segmentList.size()));
-        if (!segmentList.isEmpty()) {
-            SegmentData seg = segmentList.get(currentSegmentIndex);
-            // 字体
-            int fontBtnId = R.id.btnFont2;
-            if (seg.selectedFont == 0) fontBtnId = R.id.btnFont1;
-            else if (seg.selectedFont == 1) fontBtnId = R.id.btnFont2;
-            else if (seg.selectedFont == 2) fontBtnId = R.id.btnFont3;
-            groupFont.check(fontBtnId);
-            // 背景
-            int bgBtnId = R.id.btnBg1;
-            if (seg.selectedBg == 0) bgBtnId = R.id.btnBg1;
-            else if (seg.selectedBg == 1) bgBtnId = R.id.btnBg2;
-            else if (seg.selectedBg == 2) bgBtnId = R.id.btnBg3;
-            groupBg.check(bgBtnId);
-            // 字号
-            seekBarSize.setValue(seg.fontSize);
-            tvSizeLabel.setText("字号：" + seg.fontSize);
-            // 水平偏移
-            seekBarOffsetX.setValue(seg.offsetXProgress);
-            tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
-            // 对齐方式
-            int alignBtnId = R.id.btnAlignCenter;
-            if (seg.textAlign == Layout.Alignment.ALIGN_CENTER) alignBtnId = R.id.btnAlignCenter;
-            else if (seg.textAlign == Layout.Alignment.ALIGN_NORMAL) alignBtnId = R.id.btnAlignLeft;
-            else if (seg.textAlign == Layout.Alignment.ALIGN_OPPOSITE) alignBtnId = R.id.btnAlignRight;
-            groupAlign.check(alignBtnId);
+        autoGenerateAllSegmentImages();
+        if (currentSegmentIndex < segmentBitmaps.size()) {
+            previewPager.setCurrentItem(currentSegmentIndex, false);
+        }
+    }
+
+    // 生成所有段落图片
+    private void autoGenerateAllSegmentImages() {
+        segmentBitmaps.clear();
+        if (segmentList.isEmpty()) {
+            segmentBitmaps.add(BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
+        } else {
+            for (SegmentData seg : segmentList) {
+                if (TextUtils.isEmpty(seg.text)) {
+                    segmentBitmaps.add(BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
+                } else {
+                    segmentBitmaps.add(generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign));
+                }
+            }
+        }
+        previewPagerAdapter.notifyDataSetChanged();
+    }
+
+    // 适配器类
+    private class PreviewPagerAdapter extends androidx.recyclerview.widget.RecyclerView.Adapter<PreviewPagerAdapter.PreviewViewHolder> {
+        @Override
+        public PreviewViewHolder onCreateViewHolder(android.view.ViewGroup parent, int viewType) {
+            ImageView imageView = new ImageView(parent.getContext());
+            imageView.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+            imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            return new PreviewViewHolder(imageView);
+        }
+        @Override
+        public void onBindViewHolder(PreviewViewHolder holder, int position) {
+            if (position < segmentBitmaps.size()) {
+                holder.imageView.setImageBitmap(segmentBitmaps.get(position));
+            }
+        }
+        @Override
+        public int getItemCount() {
+            return segmentBitmaps.size();
+        }
+        class PreviewViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
+            ImageView imageView;
+            PreviewViewHolder(View itemView) {
+                super(itemView);
+                imageView = (ImageView) itemView;
+            }
         }
     }
 } 
