@@ -52,6 +52,11 @@ import com.google.android.material.floatingactionbutton.ExtendedFloatingActionBu
 import com.google.android.material.slider.Slider;
 import androidx.viewpager2.widget.ViewPager2;
 import android.widget.ImageView;
+import android.util.LruCache;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.HashSet;
+import java.util.Set;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -76,11 +81,10 @@ class SegmentData {
 }
 
 public class MainActivity extends AppCompatActivity {
-    private FloatingActionButton btnSave;
+    private MaterialButton btnSave;
     private EditText etInput;
     private androidx.viewpager2.widget.ViewPager2 previewPager;
     private PreviewPagerAdapter previewPagerAdapter;
-    private List<Bitmap> segmentBitmaps = new ArrayList<>();
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
@@ -104,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
     private Slider seekBarOffsetX;
     private TextView tvOffsetXLabel;
     private int offsetXProgress = 0; // SeekBar的进度
-    private int maxOffsetX = 1200; // 最大偏移像素
+    private int maxOffsetX = 800; // 最大偏移像素
 
     private ImageButton btnToggleExpand;
     private boolean isInputExpanded = false; // 初始为折叠状态
@@ -131,6 +135,14 @@ public class MainActivity extends AppCompatActivity {
         }
         @Override public void afterTextChanged(android.text.Editable s) {}
     };
+
+    private LruCache<Integer, Bitmap> segmentBitmapCache = new LruCache<>(5); // 缓存5页
+    private ExecutorService bitmapExecutor = Executors.newFixedThreadPool(2);
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Set<Integer> generatingPositions = new HashSet<>();
+
+    private MaterialButton btnGenerate;
+    private MaterialButton btnSaveAll;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -184,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
         btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (segmentBitmaps.isEmpty()) {
+                if (segmentBitmapCache.size() == 0) {
                     Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -319,6 +331,40 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        btnGenerate = findViewById(R.id.btnGenerate);
+        btnGenerate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                autoGenerateAllSegmentImages();
+                Toast.makeText(MainActivity.this, "已生成图片", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnSaveAll = findViewById(R.id.btnSaveAll);
+        btnSaveAll.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (segmentList.isEmpty() || segmentBitmapCache.size() == 0) {
+                    Toast.makeText(MainActivity.this, "没有可保存的图片", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                int successCount = 0;
+                for (int i = 0; i < segmentList.size(); i++) {
+                    Bitmap bmp = segmentBitmapCache.get(i);
+                    if (bmp != null) {
+                        if (saveBitmapToGalleryWithName(bmp, "mindpic_segment_" + (i+1) + ".png")) {
+                            successCount++;
+                        }
+                    }
+                }
+                if (successCount > 0) {
+                    Toast.makeText(MainActivity.this, "已保存全部图片到相册 (DCIM/mindPic)", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(MainActivity.this, "保存失败或无图片", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
     // 渲染当前段落图片
@@ -404,9 +450,8 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
-    // 保存图片到相册
-    private boolean saveImageToGallery(Bitmap bitmap) {
-        String fileName = "mindpic_" + System.currentTimeMillis() + ".png";
+    // 保存图片到相册（指定文件名，始终保存到 DCIM/mindPic）
+    private boolean saveBitmapToGalleryWithName(Bitmap bitmap, String fileName) {
         OutputStream fos = null;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -439,7 +484,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_WRITE_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 if (generatedBitmap != null) {
-                    saveImageToGallery(generatedBitmap);
+                    saveBitmapToGalleryWithName(generatedBitmap, "mindpic_single.png");
                 }
             } else {
                 Toast.makeText(this, "未获得存储权限，无法保存图片", Toast.LENGTH_SHORT).show();
@@ -455,7 +500,7 @@ public class MainActivity extends AppCompatActivity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final boolean success = saveImageToGallery(generatedBitmap);
+                final boolean success = saveBitmapToGalleryWithName(generatedBitmap, "mindpic_single.png");
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -473,23 +518,23 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateSegmentUI() {
         autoGenerateImageForCurrentSegment();
-        autoGenerateAllSegmentImages();
-        if (currentSegmentIndex < segmentBitmaps.size()) {
+        if (currentSegmentIndex < segmentBitmapCache.size()) {
             previewPager.setCurrentItem(currentSegmentIndex, false);
         }
     }
 
     // 生成所有段落图片
     private void autoGenerateAllSegmentImages() {
-        segmentBitmaps.clear();
+        segmentBitmapCache.evictAll();
         if (segmentList.isEmpty()) {
-            segmentBitmaps.add(BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
+            segmentBitmapCache.put(0, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
         } else {
-            for (SegmentData seg : segmentList) {
+            for (int i = 0; i < segmentList.size(); i++) {
+                SegmentData seg = segmentList.get(i);
                 if (TextUtils.isEmpty(seg.text)) {
-                    segmentBitmaps.add(BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
+                    segmentBitmapCache.put(i, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
                 } else {
-                    segmentBitmaps.add(generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign));
+                    segmentBitmapCache.put(i, generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign));
                 }
             }
         }
@@ -509,13 +554,35 @@ public class MainActivity extends AppCompatActivity {
         }
         @Override
         public void onBindViewHolder(PreviewViewHolder holder, int position) {
-            if (position < segmentBitmaps.size()) {
-                holder.imageView.setImageBitmap(segmentBitmaps.get(position));
+            Bitmap bmp = segmentBitmapCache.get(position);
+            if (bmp != null) {
+                holder.imageView.setImageBitmap(bmp);
+            } else {
+                // 先显示占位图
+                holder.imageView.setImageResource(R.drawable.leaf);
+                // 避免重复生成
+                if (!generatingPositions.contains(position) && position < segmentList.size()) {
+                    generatingPositions.add(position);
+                    bitmapExecutor.execute(() -> {
+                        Bitmap newBmp;
+                        SegmentData seg = segmentList.get(position);
+                        if (TextUtils.isEmpty(seg.text)) {
+                            newBmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                        } else {
+                            newBmp = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
+                        }
+                        segmentBitmapCache.put(position, newBmp);
+                        mainHandler.post(() -> {
+                            generatingPositions.remove(position);
+                            notifyItemChanged(position);
+                        });
+                    });
+                }
             }
         }
         @Override
         public int getItemCount() {
-            return segmentBitmaps.size();
+            return Math.max(segmentList.size(), 1); // 至少返回1，保证有占位图
         }
         class PreviewViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
             ImageView imageView;

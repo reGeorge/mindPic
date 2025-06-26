@@ -240,17 +240,63 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- 悬浮保存按钮 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/btnSave"
-        android:layout_width="wrap_content"
+    <!-- 底部操作栏 -->
+    <com.google.android.material.bottomappbar.BottomAppBar
+        android:id="@+id/bottomAppBar"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:src="@android:drawable/ic_menu_save"
+        android:layout_gravity="bottom"
         app:backgroundTint="@color/colorPrimary"
-        app:iconTint="@android:color/white"
-        app:rippleColor="@color/colorPrimaryVariant"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="24dp"
-        android:contentDescription="保存图片" />
+        app:elevation="8dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnGenerate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="生成图片"
+                style="@style/Widget.MaterialComponents.Button"
+                app:icon="@android:drawable/ic_menu_gallery"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:backgroundTint="@color/colorPrimaryVariant"
+                app:iconTint="@android:color/white"
+                android:textColor="@android:color/white" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSave"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="保存图片"
+                style="@style/Widget.MaterialComponents.Button"
+                app:icon="@android:drawable/ic_menu_save"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:backgroundTint="@color/colorPrimary"
+                app:iconTint="@android:color/white"
+                android:textColor="@android:color/white"
+                android:layout_marginStart="12dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSaveAll"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="全部保存"
+                style="@style/Widget.MaterialComponents.Button"
+                app:icon="@android:drawable/ic_menu_save"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                app:backgroundTint="@color/colorPrimary"
+                app:iconTint="@android:color/white"
+                android:textColor="@android:color/white"
+                android:layout_marginStart="12dp" />
+        </LinearLayout>
+    </com.google.android.material.bottomappbar.BottomAppBar>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
