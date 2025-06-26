@@ -1,7 +1,8 @@
 <resources>
-    <color name="colorPrimary">#2196F3</color>
-    <color name="colorPrimaryDark">#1976D2</color>
+    <color name="colorPrimary">#4B1EFF</color>
+    <color name="colorPrimaryDark">#3A17B8</color>
     <color name="colorAccent">#FF4081</color>
     <color name="colorInputOutline">#E0E0E0</color>
-    <color name="colorPrimaryVariant">#1976D2</color>
+    <color name="colorPrimaryVariant">#3A17B8</color>
+    <color name="bottomBarBg">#2D1457</color>
 </resources> 

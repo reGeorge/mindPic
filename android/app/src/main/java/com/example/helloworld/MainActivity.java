@@ -57,6 +57,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.HashSet;
 import java.util.Set;
+import com.google.android.material.snackbar.Snackbar;
+import android.view.Gravity;
+import android.widget.FrameLayout;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -175,15 +178,15 @@ public class MainActivity extends AppCompatActivity {
                 if (isInputExpanded) {
                     etInput.setMaxLines(Integer.MAX_VALUE);
                     etInput.setMinLines(10);
-                    btnToggleExpand.setImageResource(android.R.drawable.arrow_up_float); // 展开时显示收起图标
-                    lastInputText = etInput.getText().toString(); // 记录当前内容
-                    // 展开时移除TextWatcher，防止分段和渲染
+                    btnToggleExpand.setImageResource(R.drawable.collapse_content_24dp); // 展开时显示收起图标
+                    btnToggleExpand.animate().rotation(180f).setDuration(200).start();
+                    lastInputText = etInput.getText().toString();
                     etInput.removeTextChangedListener(inputTextWatcher);
                 } else {
                     etInput.setMaxLines(1);
                     etInput.setMinLines(1);
-                    btnToggleExpand.setImageResource(android.R.drawable.arrow_down_float); // 折叠时显示展开图标
-                    // 收起时同步内容并触发分段和渲染
+                    btnToggleExpand.setImageResource(R.drawable.expand_content_24dp); // 折叠时显示展开图标
+                    btnToggleExpand.animate().rotation(0f).setDuration(200).start();
                     if (!lastInputText.equals(etInput.getText().toString())) {
                         inputTextWatcher.onTextChanged(etInput.getText(), 0, 0, etInput.getText().length());
                     }
@@ -197,7 +200,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (segmentBitmapCache.size() == 0) {
-                    Toast.makeText(MainActivity.this, "请先生成图片", Toast.LENGTH_SHORT).show();
+                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "请先生成图片", Snackbar.LENGTH_SHORT);
+                    View snackbarView = snackbar.getView();
+                    snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                    TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                    textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                    textView.setCompoundDrawablePadding(24);
+                    FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                    params.gravity = Gravity.TOP;
+                    params.topMargin = 80;
+                    snackbarView.setLayoutParams(params);
+                    snackbar.show();
+                    snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
                     return;
                 }
                 showSavingDialogAndSave();
@@ -337,7 +351,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 autoGenerateAllSegmentImages();
-                Toast.makeText(MainActivity.this, "已生成图片", Toast.LENGTH_SHORT).show();
+                Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "已生成图片", Snackbar.LENGTH_SHORT);
+                View snackbarView = snackbar.getView();
+                snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                textView.setCompoundDrawablePadding(24);
+                FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                params.gravity = Gravity.TOP;
+                params.topMargin = 80;
+                snackbarView.setLayoutParams(params);
+                snackbar.show();
+                snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
             }
         });
 
@@ -346,23 +371,21 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (segmentList.isEmpty() || segmentBitmapCache.size() == 0) {
-                    Toast.makeText(MainActivity.this, "没有可保存的图片", Toast.LENGTH_SHORT).show();
+                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "没有可保存的图片", Snackbar.LENGTH_SHORT);
+                    View snackbarView = snackbar.getView();
+                    snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                    TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                    textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                    textView.setCompoundDrawablePadding(24);
+                    FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                    params.gravity = Gravity.TOP;
+                    params.topMargin = 80;
+                    snackbarView.setLayoutParams(params);
+                    snackbar.show();
+                    snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
                     return;
                 }
-                int successCount = 0;
-                for (int i = 0; i < segmentList.size(); i++) {
-                    Bitmap bmp = segmentBitmapCache.get(i);
-                    if (bmp != null) {
-                        if (saveBitmapToGalleryWithName(bmp, "mindpic_segment_" + (i+1) + ".png")) {
-                            successCount++;
-                        }
-                    }
-                }
-                if (successCount > 0) {
-                    Toast.makeText(MainActivity.this, "已保存全部图片到相册 (DCIM/mindPic)", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(MainActivity.this, "保存失败或无图片", Toast.LENGTH_SHORT).show();
-                }
+                showSavingAllDialogAndSaveAll();
             }
         });
     }
@@ -487,7 +510,18 @@ public class MainActivity extends AppCompatActivity {
                     saveBitmapToGalleryWithName(generatedBitmap, "mindpic_single.png");
                 }
             } else {
-                Toast.makeText(this, "未获得存储权限，无法保存图片", Toast.LENGTH_SHORT).show();
+                Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "未获得存储权限，无法保存图片", Snackbar.LENGTH_SHORT);
+                View snackbarView = snackbar.getView();
+                snackbar.setBackgroundTint(ContextCompat.getColor(this, R.color.colorPrimary));
+                TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                textView.setCompoundDrawablePadding(24);
+                FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                params.gravity = Gravity.TOP;
+                params.topMargin = 80;
+                snackbarView.setLayoutParams(params);
+                snackbar.show();
+                snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
             }
         }
     }
@@ -506,9 +540,31 @@ public class MainActivity extends AppCompatActivity {
                     public void run() {
                         dialog.dismiss();
                         if (success) {
-                            Toast.makeText(MainActivity.this, "图片已保存到相册", Toast.LENGTH_SHORT).show();
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "图片已保存到相册", Snackbar.LENGTH_SHORT);
+                            View snackbarView = snackbar.getView();
+                            snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                            TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                            textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                            textView.setCompoundDrawablePadding(24);
+                            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                            params.gravity = Gravity.TOP;
+                            params.topMargin = 80;
+                            snackbarView.setLayoutParams(params);
+                            snackbar.show();
+                            snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
                         } else {
-                            Toast.makeText(MainActivity.this, "保存失败", Toast.LENGTH_SHORT).show();
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "保存失败", Snackbar.LENGTH_SHORT);
+                            View snackbarView = snackbar.getView();
+                            snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                            TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                            textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                            textView.setCompoundDrawablePadding(24);
+                            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                            params.gravity = Gravity.TOP;
+                            params.topMargin = 80;
+                            snackbarView.setLayoutParams(params);
+                            snackbar.show();
+                            snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
                         }
                     }
                 });
@@ -591,5 +647,73 @@ public class MainActivity extends AppCompatActivity {
                 imageView = (ImageView) itemView;
             }
         }
+    }
+
+    /**
+     * 保存全部图片，带进度对话框
+     */
+    private void showSavingAllDialogAndSaveAll() {
+        final ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+        dialog.setTitle("正在保存全部图片");
+        dialog.setMax(segmentList.size());
+        dialog.setCancelable(false);
+        dialog.setProgress(0);
+        dialog.show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final int[] successCount = {0};
+                for (int i = 0; i < segmentList.size(); i++) {
+                    Bitmap bmp = segmentBitmapCache.get(i);
+                    if (bmp != null) {
+                        if (saveBitmapToGalleryWithName(bmp, "mindpic_segment_" + (i+1) + ".png")) {
+                            successCount[0]++;
+                        }
+                    }
+                    final int progress = i + 1;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            dialog.setMessage("正在保存第" + progress + "/" + segmentList.size() + "张...");
+                            dialog.setProgress(progress);
+                        }
+                    });
+                }
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        dialog.dismiss();
+                        if (successCount[0] > 0) {
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "已保存全部图片到相册 (DCIM/mindPic)", Snackbar.LENGTH_SHORT);
+                            View snackbarView = snackbar.getView();
+                            snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                            TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                            textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                            textView.setCompoundDrawablePadding(24);
+                            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                            params.gravity = Gravity.TOP;
+                            params.topMargin = 80;
+                            snackbarView.setLayoutParams(params);
+                            snackbar.show();
+                            snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
+                        } else {
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "保存失败或无图片", Snackbar.LENGTH_SHORT);
+                            View snackbarView = snackbar.getView();
+                            snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                            TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                            textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                            textView.setCompoundDrawablePadding(24);
+                            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                            params.gravity = Gravity.TOP;
+                            params.topMargin = 80;
+                            snackbarView.setLayoutParams(params);
+                            snackbar.show();
+                            snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
+                        }
+                    }
+                });
+            }
+        }).start();
     }
 } 

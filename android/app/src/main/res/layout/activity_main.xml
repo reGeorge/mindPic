@@ -67,8 +67,8 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:layout_marginStart="8dp"
-                    android:background="@android:color/transparent"
-                    android:src="@android:drawable/arrow_down_float"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/expand_content_24dp"
                     android:contentDescription="展开/折叠"
                     android:tint="@color/colorPrimary" />
             </LinearLayout>
@@ -219,14 +219,14 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="叶子"/>
+                            android:text="月亮1"/>
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBg1"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="月亮1"/>
+                            android:text="叶子"/>
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBg2"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -246,7 +246,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        app:backgroundTint="@color/colorPrimary"
+        app:backgroundTint="@android:color/transparent"
         app:elevation="8dp">
         <LinearLayout
             android:layout_width="match_parent"
@@ -260,42 +260,48 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="生成图片"
                 style="@style/Widget.MaterialComponents.Button"
-                app:icon="@android:drawable/ic_menu_gallery"
+                app:icon="@drawable/autorenew_24dp"
+                app:iconSize="24dp"
                 app:iconGravity="textStart"
                 app:iconPadding="8dp"
-                app:backgroundTint="@color/colorPrimaryVariant"
+                app:cornerRadius="16dp"
+                app:backgroundTint="@color/colorPrimary"
                 app:iconTint="@android:color/white"
-                android:textColor="@android:color/white" />
+                android:textColor="@android:color/white"
+                android:elevation="8dp" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSave"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="保存图片"
                 style="@style/Widget.MaterialComponents.Button"
-                app:icon="@android:drawable/ic_menu_save"
+                app:icon="@drawable/download_24dp"
+                app:iconSize="24dp"
                 app:iconGravity="textStart"
                 app:iconPadding="8dp"
+                app:cornerRadius="16dp"
                 app:backgroundTint="@color/colorPrimary"
                 app:iconTint="@android:color/white"
                 android:textColor="@android:color/white"
-                android:layout_marginStart="12dp" />
+                android:layout_marginStart="12dp"
+                android:elevation="8dp" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSaveAll"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="全部保存"
                 style="@style/Widget.MaterialComponents.Button"
-                app:icon="@android:drawable/ic_menu_save"
+                app:icon="@drawable/archive_24dp"
+                app:iconSize="24dp"
                 app:iconGravity="textStart"
                 app:iconPadding="8dp"
+                app:cornerRadius="16dp"
                 app:backgroundTint="@color/colorPrimary"
                 app:iconTint="@android:color/white"
                 android:textColor="@android:color/white"
-                android:layout_marginStart="12dp" />
+                android:layout_marginStart="12dp"
+                android:elevation="8dp" />
         </LinearLayout>
     </com.google.android.material.bottomappbar.BottomAppBar>
 
