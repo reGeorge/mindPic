@@ -388,6 +388,19 @@ public class MainActivity extends AppCompatActivity {
                 showSavingAllDialogAndSaveAll();
             }
         });
+
+        // 设置切换动画
+        previewPager.setPageTransformer(new ViewPager2.PageTransformer() {
+            @Override
+            public void transformPage(@NonNull View page, float position) {
+                page.setAlpha(0.5f + (1 - Math.abs(position)) * 0.5f);
+                float scale = 0.9f + (1 - Math.abs(position)) * 0.1f;
+                page.setScaleX(scale);
+                page.setScaleY(scale);
+            }
+        });
+        // 设置预加载页面数
+        previewPager.setOffscreenPageLimit(2);
     }
 
     // 渲染当前段落图片
