@@ -139,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
         @Override public void afterTextChanged(android.text.Editable s) {}
     };
 
-    private LruCache<Integer, Bitmap> segmentBitmapCache = new LruCache<>(5); // 缓存5页
+    private LruCache<Integer, Bitmap> segmentBitmapCache = new LruCache<>(Math.max(20, segmentList.size()));
     private ExecutorService bitmapExecutor = Executors.newFixedThreadPool(2);
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Set<Integer> generatingPositions = new HashSet<>();
@@ -584,17 +584,24 @@ public class MainActivity extends AppCompatActivity {
         segmentBitmapCache.evictAll();
         if (segmentList.isEmpty()) {
             segmentBitmapCache.put(0, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
+            previewPagerAdapter.notifyDataSetChanged();
         } else {
             for (int i = 0; i < segmentList.size(); i++) {
-                SegmentData seg = segmentList.get(i);
-                if (TextUtils.isEmpty(seg.text)) {
-                    segmentBitmapCache.put(i, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
-                } else {
-                    segmentBitmapCache.put(i, generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign));
-                }
+                final int idx = i;
+                bitmapExecutor.execute(() -> {
+                    SegmentData seg = segmentList.get(idx);
+                    Bitmap bmp;
+                    if (TextUtils.isEmpty(seg.text)) {
+                        bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                    } else {
+                        bmp = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
+                    }
+                    segmentBitmapCache.put(idx, bmp);
+                    mainHandler.post(() -> previewPagerAdapter.notifyItemChanged(idx));
+                });
             }
+            previewPagerAdapter.notifyDataSetChanged();
         }
-        previewPagerAdapter.notifyDataSetChanged();
     }
 
     // 适配器类
@@ -614,26 +621,7 @@ public class MainActivity extends AppCompatActivity {
             if (bmp != null) {
                 holder.imageView.setImageBitmap(bmp);
             } else {
-                // 先显示占位图
                 holder.imageView.setImageResource(R.drawable.leaf);
-                // 避免重复生成
-                if (!generatingPositions.contains(position) && position < segmentList.size()) {
-                    generatingPositions.add(position);
-                    bitmapExecutor.execute(() -> {
-                        Bitmap newBmp;
-                        SegmentData seg = segmentList.get(position);
-                        if (TextUtils.isEmpty(seg.text)) {
-                            newBmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
-                        } else {
-                            newBmp = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
-                        }
-                        segmentBitmapCache.put(position, newBmp);
-                        mainHandler.post(() -> {
-                            generatingPositions.remove(position);
-                            notifyItemChanged(position);
-                        });
-                    });
-                }
             }
         }
         @Override

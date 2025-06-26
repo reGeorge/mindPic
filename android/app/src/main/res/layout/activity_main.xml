@@ -241,68 +241,64 @@
     </androidx.core.widget.NestedScrollView>
 
     <!-- 底部操作栏 -->
-    <com.google.android.material.bottomappbar.BottomAppBar
-        android:id="@+id/bottomAppBar"
+    <LinearLayout
+        android:id="@+id/bottomButtonBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
         android:layout_gravity="bottom"
-        app:backgroundTint="@android:color/transparent"
-        app:elevation="8dp">
-        <LinearLayout
-            android:layout_width="match_parent"
+        android:layout_marginBottom="24dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="@android:color/transparent">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGenerate"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp">
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnGenerate"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="@style/Widget.MaterialComponents.Button"
-                app:icon="@drawable/autorenew_24dp"
-                app:iconSize="24dp"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:cornerRadius="16dp"
-                app:backgroundTint="@color/colorPrimary"
-                app:iconTint="@android:color/white"
-                android:textColor="@android:color/white"
-                android:elevation="8dp" />
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSave"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="@style/Widget.MaterialComponents.Button"
-                app:icon="@drawable/download_24dp"
-                app:iconSize="24dp"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:cornerRadius="16dp"
-                app:backgroundTint="@color/colorPrimary"
-                app:iconTint="@android:color/white"
-                android:textColor="@android:color/white"
-                android:layout_marginStart="12dp"
-                android:elevation="8dp" />
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSaveAll"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                style="@style/Widget.MaterialComponents.Button"
-                app:icon="@drawable/archive_24dp"
-                app:iconSize="24dp"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:cornerRadius="16dp"
-                app:backgroundTint="@color/colorPrimary"
-                app:iconTint="@android:color/white"
-                android:textColor="@android:color/white"
-                android:layout_marginStart="12dp"
-                android:elevation="8dp" />
-        </LinearLayout>
-    </com.google.android.material.bottomappbar.BottomAppBar>
+            android:layout_weight="1"
+            style="@style/Widget.MaterialComponents.Button"
+            app:icon="@drawable/autorenew_24dp"
+            app:iconSize="24dp"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:cornerRadius="16dp"
+            app:backgroundTint="@color/colorPrimary"
+            app:iconTint="@android:color/white"
+            android:textColor="@android:color/white"
+            android:elevation="8dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSave"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            style="@style/Widget.MaterialComponents.Button"
+            app:icon="@drawable/download_24dp"
+            app:iconSize="24dp"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:cornerRadius="16dp"
+            app:backgroundTint="@color/colorPrimary"
+            app:iconTint="@android:color/white"
+            android:textColor="@android:color/white"
+            android:layout_marginStart="12dp"
+            android:elevation="8dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSaveAll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            style="@style/Widget.MaterialComponents.Button"
+            app:icon="@drawable/archive_24dp"
+            app:iconSize="24dp"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:cornerRadius="16dp"
+            app:backgroundTint="@color/colorPrimary"
+            app:iconTint="@android:color/white"
+            android:textColor="@android:color/white"
+            android:layout_marginStart="12dp"
+            android:elevation="8dp" />
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
