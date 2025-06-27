@@ -393,7 +393,8 @@ public class MainActivity extends AppCompatActivity {
         previewPager.setPageTransformer(new ViewPager2.PageTransformer() {
             @Override
             public void transformPage(@NonNull View page, float position) {
-                page.setAlpha(0.5f + (1 - Math.abs(position)) * 0.5f);
+                // 去除透明度动画，避免图片变灰白
+                // page.setAlpha(0.5f + (1 - Math.abs(position)) * 0.5f);
                 float scale = 0.9f + (1 - Math.abs(position)) * 0.1f;
                 page.setScaleX(scale);
                 page.setScaleY(scale);
@@ -401,6 +402,9 @@ public class MainActivity extends AppCompatActivity {
         });
         // 设置预加载页面数
         previewPager.setOffscreenPageLimit(2);
+
+        MaterialButton btnSaveAndShare = findViewById(R.id.btnSaveAndShare);
+        btnSaveAndShare.setOnClickListener(v -> saveAndShareToXiaoHongShu());
     }
 
     // 渲染当前段落图片
@@ -716,5 +720,73 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+
+    // 保存图片并返回Uri
+    private Uri saveBitmapAndGetUri(Bitmap bitmap, String fileName) {
+        OutputStream fos = null;
+        Uri uri = null;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+                values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/mindPic");
+                uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                fos = getContentResolver().openOutputStream(uri);
+            } else {
+                String path = MediaStore.Images.Media.insertImage(getContentResolver(), bitmap, fileName, "mindPic生成");
+                uri = Uri.parse(path);
+                fos = null;
+            }
+            if (fos != null) {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                fos.flush();
+                fos.close();
+            }
+            return uri;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private void saveAndShareToXiaoHongShu() {
+        if (segmentList.isEmpty() || segmentBitmapCache.size() == 0) {
+            Snackbar.make(findViewById(android.R.id.content), "请先生成图片", Snackbar.LENGTH_SHORT).show();
+            return;
+        }
+        new Thread(() -> {
+            ArrayList<Uri> uriList = new ArrayList<>();
+            for (int i = 0; i < segmentList.size(); i++) {
+                Bitmap bmp = segmentBitmapCache.get(i);
+                if (bmp != null) {
+                    Uri uri = saveBitmapAndGetUri(bmp, "mindpic_share_" + (i+1) + ".png");
+                    if (uri != null) uriList.add(uri);
+                }
+            }
+            runOnUiThread(() -> {
+                if (!uriList.isEmpty()) {
+                    shareImagesToXiaoHongShu(uriList);
+                } else {
+                    Snackbar.make(findViewById(android.R.id.content), "保存失败，无法分享", Snackbar.LENGTH_SHORT).show();
+                }
+            });
+        }).start();
+    }
+
+    // 多图分享至小红书
+    private void shareImagesToXiaoHongShu(ArrayList<Uri> imageUris) {
+        Intent shareIntent = new Intent();
+        shareIntent.setAction(Intent.ACTION_SEND_MULTIPLE);
+        shareIntent.setType("image/*");
+        shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, imageUris);
+        shareIntent.setPackage("com.xingin.xhs");
+        try {
+            startActivity(shareIntent);
+        } catch (android.content.ActivityNotFoundException e) {
+            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "未检测到小红书App", Snackbar.LENGTH_SHORT);
+            snackbar.show();
+        }
     }
 } 
