@@ -14,24 +14,25 @@ android {
         versionName "1.0"
     }
 
-    // 读取 keystore.properties
-    def keystorePropertiesFile = rootProject.file("android/keystore.properties")
-    def keystoreProperties = new Properties()
-    if (keystorePropertiesFile.exists()) {
-        keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-    }
-    // 计算 keystore 的绝对路径（确保不会为 null）
-    def keystorePath = keystoreProperties['storeFile']
-    if (keystorePath != null && !keystorePath.startsWith("/")) {
-        keystorePath = file("${projectDir}/" + keystorePath)
-    }
 
     signingConfigs {
         release {
-            storeFile keystorePath
-            storePassword keystoreProperties['storePassword']
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
+            def keystorePropertiesFile = rootProject.file("android/keystore.properties")
+            def keystoreProperties = new Properties()
+            if (keystorePropertiesFile.exists()) {
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                def keystorePath = keystoreProperties['storeFile']
+                if (keystorePath == null || keystorePath.trim() == "") {
+                    throw new Exception("storeFile in keystore.properties is missing or empty! 请检查 android/keystore.properties 文件的 storeFile 字段是否正确填写。")
+                }
+                if (!keystorePath.startsWith("/")) {
+                    keystorePath = file("${projectDir}/" + keystorePath)
+                }
+                storeFile keystorePath
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
         }
     }
 
