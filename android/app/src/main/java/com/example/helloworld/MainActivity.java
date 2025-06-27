@@ -60,6 +60,8 @@ import java.util.Set;
 import com.google.android.material.snackbar.Snackbar;
 import android.view.Gravity;
 import android.widget.FrameLayout;
+import android.util.Log;
+import androidx.recyclerview.widget.RecyclerView;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -126,21 +128,33 @@ public class MainActivity extends AppCompatActivity {
 
     // 用 inputTextWatcher 替换原 etInput.addTextChangedListener
     private final android.text.TextWatcher inputTextWatcher = new android.text.TextWatcher() {
+        private boolean hasPasted = false;
         @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
         @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-            String[] segments = s.toString().split("\\n\\n+");
+            // 先将"=="替换为特殊分段符，再用正则分段（3个及以上换行或==都算分段）
+            String processed = s.toString().replace("==", "<SPLIT>");
+            // 用正则将3个及以上换行和<SPLIT>都作为分段符
+            String[] segments = processed.split("(<SPLIT>|\n{3,})");
             segmentList.clear();
             for (int i = 0; i < segments.length; i++) {
                 segmentList.add(new SegmentData(segments[i].trim(), i));
             }
             currentSegmentIndex = 0;
             updateSegmentUI();
+            // 检测第一次粘贴（文本由空变为非空）
+            if (!hasPasted && before == 0 && s.length() > 0 && count > 1) {
+                hasPasted = true;
+                Log.d("MindPic", "首次粘贴文本，自动触发图片渲染");
+                autoGenerateAllSegmentImages();
+            }
         }
         @Override public void afterTextChanged(android.text.Editable s) {}
     };
 
-    private LruCache<Integer, Bitmap> segmentBitmapCache = new LruCache<>(Math.max(20, segmentList.size()));
-    private ExecutorService bitmapExecutor = Executors.newFixedThreadPool(2);
+    // 提高缓存容量，避免滑动时频繁回收
+    private LruCache<Integer, Bitmap> segmentBitmapCache = new LruCache<>(Math.max(50, segmentList.size()));
+    // 提高线程池线程数，加快图片生成
+    private ExecutorService bitmapExecutor = Executors.newFixedThreadPool(4);
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Set<Integer> generatingPositions = new HashSet<>();
 
@@ -338,6 +352,7 @@ public class MainActivity extends AppCompatActivity {
         previewPager.registerOnPageChangeCallback(new androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
+                Log.d("MindPic", "onPageSelected: " + position);
                 super.onPageSelected(position);
                 if (position < segmentList.size()) {
                     currentSegmentIndex = position;
@@ -400,8 +415,15 @@ public class MainActivity extends AppCompatActivity {
                 page.setScaleY(scale);
             }
         });
-        // 设置预加载页面数
-        previewPager.setOffscreenPageLimit(2);
+        // 关闭ViewPager2内部RecyclerView的ItemAnimator，提升滑动流畅度
+        previewPager.post(() -> {
+            View child = previewPager.getChildAt(0);
+            if (child instanceof RecyclerView) {
+                ((RecyclerView) child).setItemAnimator(null);
+            }
+        });
+        // 设置预加载页面数为全部，极致丝滑
+        previewPager.setOffscreenPageLimit(Math.max(2, segmentList.size()));
 
         MaterialButton btnSaveAndShare = findViewById(R.id.btnSaveAndShare);
         btnSaveAndShare.setOnClickListener(v -> saveAndShareToXiaoHongShu());
@@ -418,69 +440,66 @@ public class MainActivity extends AppCompatActivity {
             generatedBitmap = null;
             return;
         }
-        generatedBitmap = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
+        generatedBitmap = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
     }
 
-    // 修改 generateImage 方法参数
-    private Bitmap generateImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        // 1. 加载背景图片
-        Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
+    // 生成预览用小尺寸图片
+    private Bitmap generatePreviewImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
+        int canvasSize = 400; // 预览用小图
+        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, canvasSize);
+    }
 
-        // 设置固定的1:1画布大小
-        int canvasSize = 1000; 
+    // 生成导出用大尺寸图片
+    private Bitmap generateExportImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
+        int canvasSize = 1000; // 导出用大图
+        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, canvasSize);
+    }
+
+    // 通用尺寸图片生成
+    private Bitmap generateImageWithSize(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign, int canvasSize) {
+        Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
         Bitmap result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
-
-        // 裁剪并居中绘制背景图到1:1画布上
         Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
         Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
-
         float scaleX = (float) dstRect.width() / srcRect.width();
         float scaleY = (float) dstRect.height() / srcRect.height();
-        float scale = Math.max(scaleX, scaleY); // 缩放以填充目标
-
+        float scale = Math.max(scaleX, scaleY);
         float scaledWidth = srcRect.width() * scale;
         float scaledHeight = srcRect.height() * scale;
-
         float left = (dstRect.width() - scaledWidth) / 2;
         float top = (dstRect.height() - scaledHeight) / 2;
-
         Matrix matrix = new Matrix();
         matrix.postScale(scale, scale);
         matrix.postTranslate(left, top);
-        canvas.drawBitmap(bg, matrix, new Paint()); // 使用 Paint 对象
-
-        // 2. 加载字体
+        canvas.drawBitmap(bg, matrix, new Paint());
         TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setTypeface(Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]));
-        textPaint.setTextSize(fontSize);
-        textPaint.setColor(0xFFFFFFFF); // 白色
+        textPaint.setTextSize(fontSize * canvasSize / 1000f); // 字号等比缩放
+        textPaint.setColor(0xFFFFFFFF);
         textPaint.setShadowLayer(8, 4, 4, 0x80000000);
-        textPaint.setTextSkewX(-0.2f); // 微微倾斜
-
-        // 3. 多行自动换行绘制（支持旋转、偏移和自定义行间距）
+        textPaint.setTextSkewX(-0.2f);
         String processedText = text;
-        int minPadding = 64; // 控制换行的最小边距
-        int visualPadding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? minPadding : 120; // 视觉上左右对齐的边距更大
-        int textBlockWidth = canvasSize - 2 * minPadding; // 换行宽度始终较大
+        int minPadding = (int)(64 * canvasSize / 1000f);
+        int visualPadding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? minPadding : (int)(120 * canvasSize / 1000f);
+        int textBlockWidth = canvasSize - 2 * minPadding;
         StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
                 .setAlignment(textAlign)
                 .setLineSpacing(0f, 2.5f)
                 .setIncludePad(true)
                 .build();
-
         canvas.save();
         float layoutX;
         if (textAlign == Layout.Alignment.ALIGN_CENTER) {
-            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
-        } else if (textAlign == Layout.Alignment.ALIGN_NORMAL) { // 左对齐
-            layoutX = visualPadding + textOffsetX + offsetXProgress;
-        } else if (textAlign == Layout.Alignment.ALIGN_OPPOSITE) { // 右对齐
-            layoutX = canvasSize - visualPadding - textBlockWidth + textOffsetX + offsetXProgress;
+            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress * canvasSize / 1000f;
+        } else if (textAlign == Layout.Alignment.ALIGN_NORMAL) {
+            layoutX = visualPadding + textOffsetX + offsetXProgress * canvasSize / 1000f;
+        } else if (textAlign == Layout.Alignment.ALIGN_OPPOSITE) {
+            layoutX = canvasSize - visualPadding - textBlockWidth + textOffsetX + offsetXProgress * canvasSize / 1000f;
         } else {
-            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress;
+            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress * canvasSize / 1000f;
         }
-        float layoutY = (canvasSize - staticLayout.getHeight()) / 2f + textOffsetY; // 使用 canvasSize
+        float layoutY = (canvasSize - staticLayout.getHeight()) / 2f + textOffsetY * canvasSize / 1000f;
         float rotationPivotX = layoutX + textBlockWidth / 2f;
         float rotationPivotY = layoutY + staticLayout.getHeight() / 2f;
         canvas.rotate(textRotation, rotationPivotX, rotationPivotY);
@@ -596,28 +615,42 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 生成所有段落图片
+    // 生成所有段落图片，全部生成完再刷新UI，避免滑动卡顿
     private void autoGenerateAllSegmentImages() {
         segmentBitmapCache.evictAll();
         if (segmentList.isEmpty()) {
             segmentBitmapCache.put(0, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
+            Log.d("MindPic", "segmentList为空，放入占位图，notifyDataSetChanged");
             previewPagerAdapter.notifyDataSetChanged();
         } else {
-            for (int i = 0; i < segmentList.size(); i++) {
+            final int total = segmentList.size();
+            final int[] finished = {0};
+            for (int i = 0; i < total; i++) {
                 final int idx = i;
                 bitmapExecutor.execute(() -> {
+                    long start = System.currentTimeMillis();
                     SegmentData seg = segmentList.get(idx);
                     Bitmap bmp;
                     if (TextUtils.isEmpty(seg.text)) {
                         bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
                     } else {
-                        bmp = generateImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
+                        bmp = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
                     }
+                    long end = System.currentTimeMillis();
+                    Log.d("MindPic", "Segment " + idx + " 生成耗时: " + (end - start) + "ms");
                     segmentBitmapCache.put(idx, bmp);
-                    mainHandler.post(() -> previewPagerAdapter.notifyItemChanged(idx));
+                    synchronized (finished) {
+                        finished[0]++;
+                        if (finished[0] == total) {
+                            Log.d("MindPic", "全部图片生成完毕，notifyDataSetChanged");
+                            mainHandler.post(() -> {
+                                Log.d("MindPic", "UI线程调用notifyDataSetChanged");
+                                previewPagerAdapter.notifyDataSetChanged();
+                            });
+                        }
+                    }
                 });
             }
-            previewPagerAdapter.notifyDataSetChanged();
         }
     }
 
@@ -630,10 +663,12 @@ public class MainActivity extends AppCompatActivity {
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT));
             imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            imageView.setLayerType(View.LAYER_TYPE_HARDWARE, null); // 开启硬件加速
             return new PreviewViewHolder(imageView);
         }
         @Override
         public void onBindViewHolder(PreviewViewHolder holder, int position) {
+            Log.d("MindPic", "onBindViewHolder: position=" + position);
             Bitmap bmp = segmentBitmapCache.get(position);
             if (bmp != null) {
                 holder.imageView.setImageBitmap(bmp);
@@ -643,7 +678,9 @@ public class MainActivity extends AppCompatActivity {
         }
         @Override
         public int getItemCount() {
-            return Math.max(segmentList.size(), 1); // 至少返回1，保证有占位图
+            int count = Math.max(segmentList.size(), 1);
+            Log.d("MindPic", "getItemCount: " + count);
+            return count;
         }
         class PreviewViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
             ImageView imageView;
@@ -722,7 +759,7 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    // 保存图片并返回Uri
+    // 保存图片并返回Uri（导出用大图）
     private Uri saveBitmapAndGetUri(Bitmap bitmap, String fileName) {
         OutputStream fos = null;
         Uri uri = null;
@@ -751,6 +788,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 保存并分享到小红书（导出用大图）
     private void saveAndShareToXiaoHongShu() {
         if (segmentList.isEmpty() || segmentBitmapCache.size() == 0) {
             Snackbar.make(findViewById(android.R.id.content), "请先生成图片", Snackbar.LENGTH_SHORT).show();
@@ -759,11 +797,15 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             ArrayList<Uri> uriList = new ArrayList<>();
             for (int i = 0; i < segmentList.size(); i++) {
-                Bitmap bmp = segmentBitmapCache.get(i);
-                if (bmp != null) {
-                    Uri uri = saveBitmapAndGetUri(bmp, "mindpic_share_" + (i+1) + ".png");
-                    if (uri != null) uriList.add(uri);
+                SegmentData seg = segmentList.get(i);
+                Bitmap bmp;
+                if (TextUtils.isEmpty(seg.text)) {
+                    bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                } else {
+                    bmp = generateExportImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
                 }
+                Uri uri = saveBitmapAndGetUri(bmp, "mindpic_share_" + (i+1) + ".png");
+                if (uri != null) uriList.add(uri);
             }
             runOnUiThread(() -> {
                 if (!uriList.isEmpty()) {
