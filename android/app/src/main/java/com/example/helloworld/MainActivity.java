@@ -62,6 +62,9 @@ import android.view.Gravity;
 import android.widget.FrameLayout;
 import android.util.Log;
 import androidx.recyclerview.widget.RecyclerView;
+import android.graphics.Outline;
+import android.view.ViewOutlineProvider;
+import android.util.TypedValue;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -664,6 +667,15 @@ public class MainActivity extends AppCompatActivity {
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT));
             imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
             imageView.setLayerType(View.LAYER_TYPE_HARDWARE, null); // 开启硬件加速
+            // 设置圆角裁剪，只对图片做圆角
+            imageView.setClipToOutline(true);
+            imageView.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    int radius = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16, view.getResources().getDisplayMetrics());
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                }
+            });
             return new PreviewViewHolder(imageView);
         }
         @Override
