@@ -136,8 +136,8 @@ public class MainActivity extends AppCompatActivity {
         @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
             // 先将"=="替换为特殊分段符，再用正则分段（3个及以上换行或==都算分段）
             String processed = s.toString().replace("==", "<SPLIT>");
-            // 用正则将3个及以上换行和<SPLIT>都作为分段符
-            String[] segments = processed.split("(<SPLIT>|\n{3,})");
+            // 用正则将2个及以上换行和<SPLIT>都作为分段符
+            String[] segments = processed.split("(<SPLIT>|\n{2,})");
             segmentList.clear();
             for (int i = 0; i < segments.length; i++) {
                 segmentList.add(new SegmentData(segments[i].trim(), i));
@@ -407,15 +407,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 设置切换动画
+        // 设置切换动画为丝滑缩放，无透明度遮罩
         previewPager.setPageTransformer(new ViewPager2.PageTransformer() {
             @Override
             public void transformPage(@NonNull View page, float position) {
-                // 去除透明度动画，避免图片变灰白
-                // page.setAlpha(0.5f + (1 - Math.abs(position)) * 0.5f);
-                float scale = 0.9f + (1 - Math.abs(position)) * 0.1f;
+                float scale = 0.92f + (1 - Math.abs(position)) * 0.08f;
                 page.setScaleX(scale);
                 page.setScaleY(scale);
+                page.setAlpha(1f); // 保证无白色遮罩
             }
         });
         // 关闭ViewPager2内部RecyclerView的ItemAnimator，提升滑动流畅度
@@ -446,9 +445,9 @@ public class MainActivity extends AppCompatActivity {
         generatedBitmap = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
     }
 
-    // 生成预览用小尺寸图片
+    // 生成预览用大尺寸图片（回退降清晰度做法）
     private Bitmap generatePreviewImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        int canvasSize = 400; // 预览用小图
+        int canvasSize = 1000; // 预览和导出都用大图
         return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, canvasSize);
     }
 
