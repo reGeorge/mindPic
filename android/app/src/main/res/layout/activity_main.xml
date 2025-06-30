@@ -83,6 +83,7 @@
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
+                    
                     <androidx.viewpager2.widget.ViewPager2
                         android:id="@+id/previewPager"
                         android:layout_width="0dp"
@@ -91,6 +92,48 @@
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintDimensionRatio="1:0.9" />
+                    
+                    <ProgressBar
+                        android:id="@+id/loadingProgress"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:indeterminate="true"
+                        android:visibility="gone"
+                        app:layout_constraintTop_toTopOf="@id/previewPager"
+                        app:layout_constraintBottom_toBottomOf="@id/previewPager"
+                        app:layout_constraintStart_toStartOf="@id/previewPager"
+                        app:layout_constraintEnd_toEndOf="@id/previewPager" />
+                    
+                    <ImageButton
+                        android:id="@+id/btnPrevImage"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="16dp"
+                        android:background="@drawable/bg_btn_rounded"
+                        android:src="@drawable/baseline_chevron_left_24"
+                        android:contentDescription="上一张"
+                        android:tint="@color/colorPrimary"
+                        android:elevation="4dp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        android:alpha="0.9"/>
+
+                    <ImageButton
+                        android:id="@+id/btnNextImage"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginEnd="16dp"
+                        android:background="@drawable/bg_btn_rounded"
+                        android:src="@drawable/baseline_chevron_right_24"
+                        android:contentDescription="下一张"
+                        android:tint="@color/colorPrimary"
+                        android:elevation="4dp"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        android:alpha="0.9"/>
+                        
                 </androidx.constraintlayout.widget.ConstraintLayout>
             </com.google.android.material.card.MaterialCardView>
 

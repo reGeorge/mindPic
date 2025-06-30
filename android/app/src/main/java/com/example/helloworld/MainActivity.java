@@ -13,9 +13,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.TextUtils;
+import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -50,27 +54,21 @@ import android.os.Looper;
 import android.graphics.Rect;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.slider.Slider;
+import com.google.android.material.snackbar.Snackbar;
+
 import androidx.viewpager2.widget.ViewPager2;
-import android.widget.ImageView;
+import androidx.recyclerview.widget.RecyclerView;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.lang.reflect.Field;
 import android.util.LruCache;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.HashSet;
 import java.util.Set;
-import com.google.android.material.snackbar.Snackbar;
-import android.view.Gravity;
-import android.widget.FrameLayout;
-import android.util.Log;
-import androidx.recyclerview.widget.RecyclerView;
-import android.graphics.Outline;
-import android.view.ViewOutlineProvider;
-import android.util.TypedValue;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.TimeUnit;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -179,7 +177,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO); // 强制浅色模式
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -194,11 +192,73 @@ public class MainActivity extends AppCompatActivity {
         groupAlign = findViewById(R.id.groupAlign);
         seekBarOffsetX = findViewById(R.id.seekBarOffsetX);
         tvOffsetXLabel = findViewById(R.id.tvOffsetXLabel);
+
+        // 初始化默认值
         seekBarOffsetX.setValueFrom(-maxOffsetX);
         seekBarOffsetX.setValueTo(maxOffsetX);
         seekBarOffsetX.setValue(0);
         offsetXProgress = 0;
         tvOffsetXLabel.setText("水平偏移：" + offsetXProgress);
+
+        // 初始化图片生成相关
+        segmentList = new ArrayList<>();
+        segmentBitmapCache = new LruCache<>(10);
+        currentSegmentIndex = 0;
+
+        // 添加默认的空段落
+        SegmentData defaultSegment = new SegmentData("", 1);
+        defaultSegment.selectedBg = 0;
+        defaultSegment.fontSize = 60;
+        defaultSegment.textAlign = Layout.Alignment.ALIGN_CENTER;
+        segmentList.add(defaultSegment);
+
+        // 初始化适配器
+        previewPagerAdapter = new PreviewPagerAdapter();
+        previewPager.setAdapter(previewPagerAdapter);
+
+        // 初始化切换按钮
+        ImageButton btnPrevImage = findViewById(R.id.btnPrevImage);
+        ImageButton btnNextImage = findViewById(R.id.btnNextImage);
+        
+        btnPrevImage.setOnClickListener(v -> {
+            if (currentSegmentIndex > 0) {
+                previewPager.setCurrentItem(currentSegmentIndex - 1, true);
+                // 异步触发下一张图片的渲染
+                if (currentSegmentIndex > 1) {
+                    generateImageAsync(currentSegmentIndex - 2);
+                }
+            }
+        });
+        
+        btnNextImage.setOnClickListener(v -> {
+            if (currentSegmentIndex < segmentList.size() - 1) {
+                previewPager.setCurrentItem(currentSegmentIndex + 1, true);
+                // 异步触发下一张图片的渲染
+                if (currentSegmentIndex < segmentList.size() - 2) {
+                    generateImageAsync(currentSegmentIndex + 2);
+                }
+            }
+        });
+
+        // 禁用 ViewPager2 的滑动
+        previewPager.setUserInputEnabled(false);
+        
+        // 设置自定义页面切换动画
+        previewPager.setPageTransformer((page, position) -> {
+            float absPosition = Math.abs(position);
+            
+            // 缩放效果
+            float scale = 0.85f + (1 - absPosition) * 0.15f;
+            page.setScaleX(scale);
+            page.setScaleY(scale);
+            
+            // 透明度效果
+            page.setAlpha(1.0f - (absPosition * 0.5f));
+            
+            // 3D旋转效果
+            float rotation = position * 30f; // 30度旋转
+            page.setRotationY(rotation);
+        });
 
         btnToggleExpand = findViewById(R.id.btnToggleExpand);
         btnToggleExpand.setOnClickListener(new View.OnClickListener() {
@@ -345,12 +405,8 @@ public class MainActivity extends AppCompatActivity {
         // 初始化时添加监听
         etInput.addTextChangedListener(inputTextWatcher);
 
-        // 适配器类
-        previewPagerAdapter = new PreviewPagerAdapter();
-        previewPager.setAdapter(previewPagerAdapter);
-
-        // 首次自动生成
-        autoGenerateAllSegmentImages();
+        // 首次生成默认图片
+        mainHandler.postDelayed(() -> autoGenerateAllSegmentImages(), 500);
 
         // 设置手势检测
         scaleGestureDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -365,14 +421,20 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // ViewPager2 滑动监听同步 currentSegmentIndex 和参数区
-        previewPager.registerOnPageChangeCallback(new androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
+        previewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
-                Log.d("MindPic", "onPageSelected: " + position);
                 super.onPageSelected(position);
                 if (position < segmentList.size()) {
                     currentSegmentIndex = position;
                     updateSegmentUI();
+                    // 当切换到新页面时，预加载下一张图片
+                    if (position < segmentList.size() - 1) {
+                        generateImageAsync(position + 1);
+                    }
+                    if (position > 0) {
+                        generateImageAsync(position - 1);
+                    }
                 }
             }
         });
@@ -449,6 +511,25 @@ public class MainActivity extends AppCompatActivity {
 
         MaterialButton btnSaveAndShare = findViewById(R.id.btnSaveAndShare);
         btnSaveAndShare.setOnClickListener(v -> saveAndShareToXiaoHongShu());
+
+        // 优化 ViewPager2 配置
+        previewPager.setOffscreenPageLimit(2); // 预加载前后各2页
+        ViewPager2.PageTransformer transformer = (page, position) -> {
+            float absPos = Math.abs(position);
+            page.setAlpha(1f - (absPos * 0.5f)); // 渐变效果
+            page.setTranslationX(-position * page.getWidth() * 0.1f); // 轻微位移
+        };
+        previewPager.setPageTransformer(transformer);
+
+        // 禁用过度滚动效果
+        try {
+            Field recyclerViewField = ViewPager2.class.getDeclaredField("mRecyclerView");
+            recyclerViewField.setAccessible(true);
+            RecyclerView recyclerView = (RecyclerView) recyclerViewField.get(previewPager);
+            recyclerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        } catch (Exception e) {
+            Log.e("MindPic", "Error configuring ViewPager2", e);
+        }
     }
 
     // 渲染当前段落图片
@@ -467,9 +548,15 @@ public class MainActivity extends AppCompatActivity {
 
     // 生成预览用图片（优化尺寸）
     private Bitmap generatePreviewImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        // 预览时使用较小的尺寸以提升性能
-        int previewSize = 800;
-        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, previewSize);
+        try {
+            // 预览时使用较小的尺寸以提升性能
+            int previewSize = 800;
+            return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, previewSize);
+        } catch (Exception e) {
+            Log.e("MindPic", "Error in generatePreviewImage: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // 向上传递异常以便更好地处理
+        }
     }
 
     // 生成导出用大尺寸图片
@@ -481,87 +568,69 @@ public class MainActivity extends AppCompatActivity {
 
     // 通用尺寸图片生成（优化性能）
     private Bitmap generateImageWithSize(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign, int canvasSize) {
-        // 使用 BitmapPool 复用 Bitmap，减少内存分配
-        Bitmap result = Glide.get(this).getBitmapPool().get(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
-        if (result == null) {
-            result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
+        if (text == null) {
+            text = "";
         }
-        
+
+        // 创建位图
+        Bitmap result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
         
-        // 使用 Glide 加载和缓存背景图
         try {
-            Bitmap bg = Glide.with(this)
-                .asBitmap()
-                .load(bgResIds[selectedBg])
-                .submit(canvasSize, canvasSize)
-                .get();
-                
             // 绘制背景
-            Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
-            Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
-            float scaleX = (float) dstRect.width() / srcRect.width();
-            float scaleY = (float) dstRect.height() / srcRect.height();
-            float scale = Math.max(scaleX, scaleY);
-            float scaledWidth = srcRect.width() * scale;
-            float scaledHeight = srcRect.height() * scale;
-            float left = (dstRect.width() - scaledWidth) / 2;
-            float top = (dstRect.height() - scaledHeight) / 2;
-            Matrix matrix = new Matrix();
-            matrix.postScale(scale, scale);
-            matrix.postTranslate(left, top);
+            Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
+            if (bg != null) {
+                Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
+                Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
+                canvas.drawBitmap(bg, srcRect, dstRect, null);
+            }
+
+            // 优化文字渲染
+            TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            try {
+                Typeface typeface = Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]);
+                textPaint.setTypeface(typeface);
+            } catch (Exception e) {
+                Log.e("MindPic", "Error loading typeface: " + e.getMessage());
+                textPaint.setTypeface(Typeface.DEFAULT);
+            }
             
-            Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG); // 使用双线性过滤提升缩放质量
-            canvas.drawBitmap(bg, matrix, paint);
+            textPaint.setTextSize(fontSize * canvasSize / 1000f);
+            textPaint.setColor(0xFFFFFFFF);
+            textPaint.setShadowLayer(4, 2, 2, 0x80000000);
+
+            // 文字布局优化
+            int minPadding = (int)(64 * canvasSize / 1000f);
+            int textBlockWidth = canvasSize - 2 * minPadding;
+
+            // 使用 StaticLayout.Builder 优化文字排版
+            StaticLayout staticLayout = StaticLayout.Builder.obtain(text, 0, text.length(), textPaint, textBlockWidth)
+                    .setAlignment(textAlign)
+                    .setLineSpacing(0f, 2.0f) // 增加行距
+                    .setIncludePad(false)
+                    .build();
+
+            canvas.save();
             
+            // 计算文字位置
+            float layoutX = (canvasSize - textBlockWidth) / 2f + offsetXProgress * canvasSize / 1000f;
+            float layoutY = (canvasSize - staticLayout.getHeight()) / 2f;
+            
+            // 应用变换
+            canvas.translate(layoutX, layoutY);
+            
+            // 绘制文字
+            staticLayout.draw(canvas);
+            
+            canvas.restore();
+            
+            return result;
         } catch (Exception e) {
+            Log.e("MindPic", "Error in generateImageWithSize: " + e.getMessage());
             e.printStackTrace();
+            // 如果生成失败，返回空白图片
+            return result;
         }
-
-        // 优化文字渲染
-        TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
-        textPaint.setTypeface(Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]));
-        textPaint.setTextSize(fontSize * canvasSize / 1000f);
-        textPaint.setColor(0xFFFFFFFF);
-        textPaint.setShadowLayer(8, 4, 4, 0x80000000);
-        textPaint.setTextSkewX(-0.2f);
-
-        // 文字布局优化
-        String processedText = text;
-        int minPadding = (int)(64 * canvasSize / 1000f);
-        int visualPadding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? minPadding : (int)(120 * canvasSize / 1000f);
-        int textBlockWidth = canvasSize - 2 * minPadding;
-
-        // 使用 StaticLayout.Builder 优化文字排版
-        StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
-                .setAlignment(textAlign)
-                .setLineSpacing(0f, 2.5f)
-                .setIncludePad(true)
-                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
-                .setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE)
-                .build();
-
-        canvas.save();
-        float layoutX;
-        if (textAlign == Layout.Alignment.ALIGN_CENTER) {
-            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress * canvasSize / 1000f;
-        } else if (textAlign == Layout.Alignment.ALIGN_NORMAL) {
-            layoutX = visualPadding + textOffsetX + offsetXProgress * canvasSize / 1000f;
-        } else if (textAlign == Layout.Alignment.ALIGN_OPPOSITE) {
-            layoutX = canvasSize - visualPadding - textBlockWidth + textOffsetX + offsetXProgress * canvasSize / 1000f;
-        } else {
-            layoutX = (canvasSize - textBlockWidth) / 2f + textOffsetX + offsetXProgress * canvasSize / 1000f;
-        }
-        float layoutY = (canvasSize - staticLayout.getHeight()) / 2f + textOffsetY * canvasSize / 1000f;
-        float rotationPivotX = layoutX + textBlockWidth / 2f;
-        float rotationPivotY = layoutY + staticLayout.getHeight() / 2f;
-        
-        canvas.rotate(textRotation, rotationPivotX, rotationPivotY);
-        canvas.translate(layoutX, layoutY);
-        staticLayout.draw(canvas);
-        canvas.restore();
-        
-        return result;
     }
 
     // 保存图片到相册（指定文件名，始终保存到 DCIM/mindPic）
@@ -682,121 +751,270 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateSegmentUI() {
-        autoGenerateImageForCurrentSegment();
-        if (currentSegmentIndex < segmentBitmapCache.size()) {
-            previewPager.setCurrentItem(currentSegmentIndex, false);
+        if (currentSegmentIndex >= 0 && currentSegmentIndex < segmentList.size()) {
+            SegmentData seg = segmentList.get(currentSegmentIndex);
+            // 更新UI控件状态
+            seekBarSize.setValue(seg.fontSize);
+            tvSizeLabel.setText("字号：" + seg.fontSize);
+            seekBarOffsetX.setValue(seg.offsetXProgress);
+            tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
+            
+            // 更新字体选择
+            if (seg.selectedFont == 0) groupFont.check(R.id.btnFont1);
+            else if (seg.selectedFont == 1) groupFont.check(R.id.btnFont2);
+            else if (seg.selectedFont == 2) groupFont.check(R.id.btnFont3);
+            
+            // 更新背景选择
+            if (seg.selectedBg == 0) groupBg.check(R.id.btnBg1);
+            else if (seg.selectedBg == 1) groupBg.check(R.id.btnBg2);
+            else if (seg.selectedBg == 2) groupBg.check(R.id.btnBg3);
+            
+            // 更新对齐方式
+            if (seg.textAlign == Layout.Alignment.ALIGN_NORMAL) groupAlign.check(R.id.btnAlignLeft);
+            else if (seg.textAlign == Layout.Alignment.ALIGN_CENTER) groupAlign.check(R.id.btnAlignCenter);
+            else if (seg.textAlign == Layout.Alignment.ALIGN_OPPOSITE) groupAlign.check(R.id.btnAlignRight);
+            
+            // 如果当前图片还没有生成，触发生成
+            if (segmentBitmapCache.get(currentSegmentIndex) == null) {
+                generateImageAsync(currentSegmentIndex);
+            }
         }
     }
 
     // 优化图片生成策略
     private void autoGenerateAllSegmentImages() {
         if (segmentList.isEmpty()) {
-            segmentBitmapCache.put(0, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
-            previewPagerAdapter.notifyDataSetChanged();
-            return;
+            // 如果列表为空，添加一个默认段落
+            SegmentData defaultSegment = new SegmentData("", 1);
+            defaultSegment.selectedBg = 0;
+            defaultSegment.fontSize = 60;
+            defaultSegment.textAlign = Layout.Alignment.ALIGN_CENTER;
+            segmentList.add(defaultSegment);
+            currentSegmentIndex = 0;
         }
 
-        // 计算实际需要生成的图片范围
-        int currentPosition = previewPager.getCurrentItem();
-        int startPosition = Math.max(0, currentPosition - 2);
-        int endPosition = Math.min(segmentList.size() - 1, currentPosition + 2);
-        
-        final CountDownLatch latch = new CountDownLatch(endPosition - startPosition + 1);
-        final AtomicBoolean hasError = new AtomicBoolean(false);
+        // 计算需要生成的图片范围
+        int startIndex = Math.max(0, currentSegmentIndex - 2);
+        int endIndex = Math.min(segmentList.size() - 1, currentSegmentIndex + 2);
+        int totalToGenerate = endIndex - startIndex + 1;
 
-        // 优先生成当前可见的和临近的图片
-        for (int i = startPosition; i <= endPosition; i++) {
+        // 创建原子计数器跟踪完成数量
+        AtomicInteger completedCount = new AtomicInteger(0);
+
+        // 清除旧的缓存
+        segmentBitmapCache.evictAll();
+
+        // 一次性提交所有任务
+        for (int i = startIndex; i <= endIndex; i++) {
             final int position = i;
+            
+            // 如果已经在生成中，跳过
+            if (generatingPositions.contains(position)) {
+                completedCount.incrementAndGet();
+                continue;
+            }
+
+            // 标记该位置正在生成中
+            generatingPositions.add(position);
+
             bitmapExecutor.execute(() -> {
                 try {
                     SegmentData seg = segmentList.get(position);
-                    Bitmap bmp;
+                    Bitmap bmp = null;
+
                     if (TextUtils.isEmpty(seg.text)) {
-                        bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                        try {
+                            // 在主线程中加载资源
+                            CountDownLatch latch = new CountDownLatch(1);
+                            final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>();
+                            
+                            mainHandler.post(() -> {
+                                try {
+                                    Bitmap resourceBmp = BitmapFactory.decodeResource(getResources(), bgResIds[seg.selectedBg]);
+                                    if (resourceBmp == null) {
+                                        resourceBmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                                    }
+                                    bitmapRef.set(resourceBmp);
+                                } finally {
+                                    latch.countDown();
+                                }
+                            });
+                            
+                            // 等待主线程加载完成
+                            latch.await(2, TimeUnit.SECONDS);
+                            bmp = bitmapRef.get();
+                        } catch (Exception e) {
+                            Log.e("MindPic", "Error loading default image: " + e.getMessage());
+                        }
                     } else {
-                        bmp = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, 
-                            seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, 
-                            seg.offsetXProgress, seg.textAlign);
+                        try {
+                            bmp = generatePreviewImage(
+                                seg.text,
+                                seg.selectedFont,
+                                seg.selectedBg,
+                                seg.fontSize,
+                                seg.textOffsetX,
+                                seg.textOffsetY,
+                                seg.textRotation,
+                                seg.offsetXProgress,
+                                seg.textAlign
+                            );
+                        } catch (Exception e) {
+                            Log.e("MindPic", "Error in generatePreviewImage: " + e.getMessage());
+                            
+                            // 在主线程中加载默认背景
+                            CountDownLatch latch = new CountDownLatch(1);
+                            final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>();
+                            
+                            mainHandler.post(() -> {
+                                try {
+                                    Bitmap resourceBmp = BitmapFactory.decodeResource(getResources(), bgResIds[seg.selectedBg]);
+                                    bitmapRef.set(resourceBmp);
+                                } finally {
+                                    latch.countDown();
+                                }
+                            });
+                            
+                            // 等待主线程加载完成
+                            latch.await(2, TimeUnit.SECONDS);
+                            bmp = bitmapRef.get();
+                        }
                     }
-                    segmentBitmapCache.put(position, bmp);
+
+                    // 确保bitmap不为null
+                    if (bmp != null) {
+                        final Bitmap finalBmp = bmp;
+                        mainHandler.post(() -> {
+                            if (!isFinishing() && !isDestroyed()) {
+                                segmentBitmapCache.put(position, finalBmp);
+                                // 只在必要时更新UI
+                                if (position == currentSegmentIndex || 
+                                    position == currentSegmentIndex - 1 || 
+                                    position == currentSegmentIndex + 1) {
+                                    previewPagerAdapter.notifyItemChanged(position);
+                                }
+                            }
+                        });
+                    }
+
+                    // 增加完成计数
+                    completedCount.incrementAndGet();
                 } catch (Exception e) {
                     Log.e("MindPic", "Error generating image at position " + position, e);
-                    hasError.set(true);
+                    completedCount.incrementAndGet();
                 } finally {
-                    latch.countDown();
+                    // 移除生成中的标记
+                    generatingPositions.remove(position);
                 }
             });
         }
+    }
 
-        // 在后台线程等待所有图片生成完成
-        new Thread(() -> {
+    // 修改 generateImageAsync 方法，使其专门用于单张图片的生成
+    private void generateImageAsync(int position) {
+        if (position < 0 || position >= segmentList.size() || 
+            generatingPositions.contains(position) || 
+            segmentBitmapCache.get(position) != null) {
+            return;
+        }
+
+        // 标记该位置正在生成中
+        generatingPositions.add(position);
+
+        bitmapExecutor.execute(() -> {
             try {
-                // 设置超时时间，避免无限等待
-                boolean completed = latch.await(5, TimeUnit.SECONDS);
-                mainHandler.post(() -> {
-                    if (completed && !hasError.get()) {
-                        previewPagerAdapter.notifyDataSetChanged();
-                    } else {
-                        Toast.makeText(MainActivity.this, 
-                            "图片生成超时或出错，请重试", 
-                            Toast.LENGTH_SHORT).show();
+                SegmentData seg = segmentList.get(position);
+                Bitmap bmp = null;
+
+                if (TextUtils.isEmpty(seg.text)) {
+                    bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                } else {
+                    try {
+                        bmp = generatePreviewImage(
+                            seg.text,
+                            seg.selectedFont,
+                            seg.selectedBg,
+                            seg.fontSize,
+                            seg.textOffsetX,
+                            seg.textOffsetY,
+                            seg.textRotation,
+                            seg.offsetXProgress,
+                            seg.textAlign
+                        );
+                    } catch (Exception e) {
+                        Log.e("MindPic", "Error in generatePreviewImage: " + e.getMessage());
+                        e.printStackTrace();
+                        bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
                     }
-                });
-            } catch (InterruptedException e) {
-                Log.e("MindPic", "Image generation interrupted", e);
+                }
+
+                if (bmp != null) {
+                    segmentBitmapCache.put(position, bmp);
+                    
+                    if (position == currentSegmentIndex) {
+                        mainHandler.post(() -> {
+                            if (!isFinishing() && !isDestroyed()) {
+                                previewPagerAdapter.notifyItemChanged(position);
+                            }
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                Log.e("MindPic", "Error generating image at position " + position, e);
+                if (position == currentSegmentIndex) {
+                    mainHandler.post(() -> {
+                        if (!isFinishing() && !isDestroyed()) {
+                            Toast.makeText(MainActivity.this, 
+                                "图片生成出错，请重试", 
+                                Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            } finally {
+                generatingPositions.remove(position);
             }
-        }).start();
+        });
     }
 
     // 适配器类
-    private class PreviewPagerAdapter extends androidx.recyclerview.widget.RecyclerView.Adapter<PreviewPagerAdapter.PreviewViewHolder> {
-        @Override
-        public PreviewViewHolder onCreateViewHolder(android.view.ViewGroup parent, int viewType) {
-            ImageView imageView = new ImageView(parent.getContext());
-            imageView.setLayoutParams(new android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT));
-            imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            imageView.setLayerType(View.LAYER_TYPE_HARDWARE, null); // 开启硬件加速
-            // 设置圆角裁剪，只对图片做圆角
-            imageView.setClipToOutline(true);
-            imageView.setOutlineProvider(new ViewOutlineProvider() {
-                @Override
-                public void getOutline(View view, Outline outline) {
-                    int radius = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16, view.getResources().getDisplayMetrics());
-                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
-                }
-            });
-            return new PreviewViewHolder(imageView);
-        }
-        @Override
-        public void onBindViewHolder(PreviewViewHolder holder, int position) {
-            Log.d("MindPic", "onBindViewHolder: position=" + position);
-            Bitmap bmp = segmentBitmapCache.get(position);
-            if (bmp != null) {
-                Glide.with(holder.imageView)
-                    .load(bmp)
-                    .diskCacheStrategy(DiskCacheStrategy.NONE) // 由于是内存中的 Bitmap，不需要磁盘缓存
-                    .skipMemoryCache(true) // 由于使用了自定义的 segmentBitmapCache，不需要 Glide 的内存缓存
-                    .into(holder.imageView);
-            } else {
-                Glide.with(holder.imageView)
-                    .load(R.drawable.leaf)
-                    .into(holder.imageView);
-            }
-        }
-        @Override
-        public int getItemCount() {
-            int count = Math.max(segmentList.size(), 1);
-            Log.d("MindPic", "getItemCount: " + count);
-            return count;
-        }
-        class PreviewViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
+    private class PreviewPagerAdapter extends RecyclerView.Adapter<PreviewPagerAdapter.PreviewViewHolder> {
+        class PreviewViewHolder extends RecyclerView.ViewHolder {
             ImageView imageView;
+
             PreviewViewHolder(View itemView) {
                 super(itemView);
                 imageView = (ImageView) itemView;
+                imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
             }
+        }
+
+        @NonNull
+        @Override
+        public PreviewViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            ImageView imageView = new ImageView(parent.getContext());
+            imageView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            return new PreviewViewHolder(imageView);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull PreviewViewHolder holder, int position) {
+            Bitmap bitmap = segmentBitmapCache.get(position);
+            if (bitmap != null) {
+                holder.imageView.setImageBitmap(bitmap);
+            } else {
+                // 如果没有缓存的图片，使用默认背景
+                holder.imageView.setImageResource(R.drawable.leaf);
+                // 触发异步生成
+                generateImageAsync(position);
+            }
+        }
+
+        @Override
+        public int getItemCount() {
+            return segmentList.size();
         }
     }
 
