@@ -65,6 +65,12 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.graphics.Outline;
 import android.view.ViewOutlineProvider;
 import android.util.TypedValue;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -156,8 +162,15 @@ public class MainActivity extends AppCompatActivity {
 
     // 提高缓存容量，避免滑动时频繁回收
     private LruCache<Integer, Bitmap> segmentBitmapCache = new LruCache<>(Math.max(50, segmentList.size()));
-    // 提高线程池线程数，加快图片生成
-    private ExecutorService bitmapExecutor = Executors.newFixedThreadPool(4);
+    // 优化线程池配置
+    private final ExecutorService bitmapExecutor = new ThreadPoolExecutor(
+        2, // 核心线程数
+        4, // 最大线程数
+        60L, // 空闲线程存活时间
+        TimeUnit.SECONDS, // 时间单位
+        new LinkedBlockingQueue<>(8), // 使用有界队列
+        new ThreadPoolExecutor.CallerRunsPolicy() // 队列满时，在调用者线程中执行
+    );
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Set<Integer> generatingPositions = new HashSet<>();
 
@@ -417,15 +430,22 @@ public class MainActivity extends AppCompatActivity {
                 page.setAlpha(1f); // 保证无白色遮罩
             }
         });
-        // 关闭ViewPager2内部RecyclerView的ItemAnimator，提升滑动流畅度
+        // 设置预加载页面数为2，避免过多预加载导致的性能问题
+        previewPager.setOffscreenPageLimit(2);
+
+        // 优化 ViewPager2 的滑动性能
         previewPager.post(() -> {
             View child = previewPager.getChildAt(0);
             if (child instanceof RecyclerView) {
-                ((RecyclerView) child).setItemAnimator(null);
+                RecyclerView recyclerView = (RecyclerView) child;
+                recyclerView.setItemAnimator(null); // 禁用动画提升性能
+                recyclerView.setHasFixedSize(true); // 固定大小提升性能
+                // 设置更大的缓存来减少创建和绑定 ViewHolder 的次数
+                recyclerView.setItemViewCacheSize(4);
+                // 禁用预测动画提升性能
+                recyclerView.getLayoutManager().setItemPrefetchEnabled(false);
             }
         });
-        // 设置预加载页面数为全部，极致丝滑
-        previewPager.setOffscreenPageLimit(Math.max(2, segmentList.size()));
 
         MaterialButton btnSaveAndShare = findViewById(R.id.btnSaveAndShare);
         btnSaveAndShare.setOnClickListener(v -> saveAndShareToXiaoHongShu());
@@ -445,51 +465,82 @@ public class MainActivity extends AppCompatActivity {
         generatedBitmap = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
     }
 
-    // 生成预览用大尺寸图片（回退降清晰度做法）
+    // 生成预览用图片（优化尺寸）
     private Bitmap generatePreviewImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        int canvasSize = 1000; // 预览和导出都用大图
-        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, canvasSize);
+        // 预览时使用较小的尺寸以提升性能
+        int previewSize = 800;
+        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, previewSize);
     }
 
     // 生成导出用大尺寸图片
     private Bitmap generateExportImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        int canvasSize = 1000; // 导出用大图
-        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, canvasSize);
+        // 导出时使用更高的分辨率
+        int exportSize = 1200;
+        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, exportSize);
     }
 
-    // 通用尺寸图片生成
+    // 通用尺寸图片生成（优化性能）
     private Bitmap generateImageWithSize(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign, int canvasSize) {
-        Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
-        Bitmap result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
+        // 使用 BitmapPool 复用 Bitmap，减少内存分配
+        Bitmap result = Glide.get(this).getBitmapPool().get(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
+        if (result == null) {
+            result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
+        }
+        
         Canvas canvas = new Canvas(result);
-        Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
-        Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
-        float scaleX = (float) dstRect.width() / srcRect.width();
-        float scaleY = (float) dstRect.height() / srcRect.height();
-        float scale = Math.max(scaleX, scaleY);
-        float scaledWidth = srcRect.width() * scale;
-        float scaledHeight = srcRect.height() * scale;
-        float left = (dstRect.width() - scaledWidth) / 2;
-        float top = (dstRect.height() - scaledHeight) / 2;
-        Matrix matrix = new Matrix();
-        matrix.postScale(scale, scale);
-        matrix.postTranslate(left, top);
-        canvas.drawBitmap(bg, matrix, new Paint());
-        TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        
+        // 使用 Glide 加载和缓存背景图
+        try {
+            Bitmap bg = Glide.with(this)
+                .asBitmap()
+                .load(bgResIds[selectedBg])
+                .submit(canvasSize, canvasSize)
+                .get();
+                
+            // 绘制背景
+            Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
+            Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
+            float scaleX = (float) dstRect.width() / srcRect.width();
+            float scaleY = (float) dstRect.height() / srcRect.height();
+            float scale = Math.max(scaleX, scaleY);
+            float scaledWidth = srcRect.width() * scale;
+            float scaledHeight = srcRect.height() * scale;
+            float left = (dstRect.width() - scaledWidth) / 2;
+            float top = (dstRect.height() - scaledHeight) / 2;
+            Matrix matrix = new Matrix();
+            matrix.postScale(scale, scale);
+            matrix.postTranslate(left, top);
+            
+            Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG); // 使用双线性过滤提升缩放质量
+            canvas.drawBitmap(bg, matrix, paint);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // 优化文字渲染
+        TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
         textPaint.setTypeface(Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]));
-        textPaint.setTextSize(fontSize * canvasSize / 1000f); // 字号等比缩放
+        textPaint.setTextSize(fontSize * canvasSize / 1000f);
         textPaint.setColor(0xFFFFFFFF);
         textPaint.setShadowLayer(8, 4, 4, 0x80000000);
         textPaint.setTextSkewX(-0.2f);
+
+        // 文字布局优化
         String processedText = text;
         int minPadding = (int)(64 * canvasSize / 1000f);
         int visualPadding = (textAlign == Layout.Alignment.ALIGN_CENTER) ? minPadding : (int)(120 * canvasSize / 1000f);
         int textBlockWidth = canvasSize - 2 * minPadding;
+
+        // 使用 StaticLayout.Builder 优化文字排版
         StaticLayout staticLayout = StaticLayout.Builder.obtain(processedText, 0, processedText.length(), textPaint, textBlockWidth)
                 .setAlignment(textAlign)
                 .setLineSpacing(0f, 2.5f)
                 .setIncludePad(true)
+                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                .setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE)
                 .build();
+
         canvas.save();
         float layoutX;
         if (textAlign == Layout.Alignment.ALIGN_CENTER) {
@@ -504,10 +555,12 @@ public class MainActivity extends AppCompatActivity {
         float layoutY = (canvasSize - staticLayout.getHeight()) / 2f + textOffsetY * canvasSize / 1000f;
         float rotationPivotX = layoutX + textBlockWidth / 2f;
         float rotationPivotY = layoutY + staticLayout.getHeight() / 2f;
+        
         canvas.rotate(textRotation, rotationPivotX, rotationPivotY);
         canvas.translate(layoutX, layoutY);
         staticLayout.draw(canvas);
         canvas.restore();
+        
         return result;
     }
 
@@ -617,43 +670,64 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 生成所有段落图片，全部生成完再刷新UI，避免滑动卡顿
+    // 优化图片生成策略
     private void autoGenerateAllSegmentImages() {
-        segmentBitmapCache.evictAll();
         if (segmentList.isEmpty()) {
             segmentBitmapCache.put(0, BitmapFactory.decodeResource(getResources(), R.drawable.leaf));
-            Log.d("MindPic", "segmentList为空，放入占位图，notifyDataSetChanged");
             previewPagerAdapter.notifyDataSetChanged();
-        } else {
-            final int total = segmentList.size();
-            final int[] finished = {0};
-            for (int i = 0; i < total; i++) {
-                final int idx = i;
-                bitmapExecutor.execute(() -> {
-                    long start = System.currentTimeMillis();
-                    SegmentData seg = segmentList.get(idx);
+            return;
+        }
+
+        // 计算实际需要生成的图片范围
+        int currentPosition = previewPager.getCurrentItem();
+        int startPosition = Math.max(0, currentPosition - 2);
+        int endPosition = Math.min(segmentList.size() - 1, currentPosition + 2);
+        
+        final CountDownLatch latch = new CountDownLatch(endPosition - startPosition + 1);
+        final AtomicBoolean hasError = new AtomicBoolean(false);
+
+        // 优先生成当前可见的和临近的图片
+        for (int i = startPosition; i <= endPosition; i++) {
+            final int position = i;
+            bitmapExecutor.execute(() -> {
+                try {
+                    SegmentData seg = segmentList.get(position);
                     Bitmap bmp;
                     if (TextUtils.isEmpty(seg.text)) {
                         bmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
                     } else {
-                        bmp = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, seg.offsetXProgress, seg.textAlign);
+                        bmp = generatePreviewImage(seg.text, seg.selectedFont, seg.selectedBg, 
+                            seg.fontSize, seg.textOffsetX, seg.textOffsetY, seg.textRotation, 
+                            seg.offsetXProgress, seg.textAlign);
                     }
-                    long end = System.currentTimeMillis();
-                    Log.d("MindPic", "Segment " + idx + " 生成耗时: " + (end - start) + "ms");
-                    segmentBitmapCache.put(idx, bmp);
-                    synchronized (finished) {
-                        finished[0]++;
-                        if (finished[0] == total) {
-                            Log.d("MindPic", "全部图片生成完毕，notifyDataSetChanged");
-                            mainHandler.post(() -> {
-                                Log.d("MindPic", "UI线程调用notifyDataSetChanged");
-                                previewPagerAdapter.notifyDataSetChanged();
-                            });
-                        }
+                    segmentBitmapCache.put(position, bmp);
+                } catch (Exception e) {
+                    Log.e("MindPic", "Error generating image at position " + position, e);
+                    hasError.set(true);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        // 在后台线程等待所有图片生成完成
+        new Thread(() -> {
+            try {
+                // 设置超时时间，避免无限等待
+                boolean completed = latch.await(5, TimeUnit.SECONDS);
+                mainHandler.post(() -> {
+                    if (completed && !hasError.get()) {
+                        previewPagerAdapter.notifyDataSetChanged();
+                    } else {
+                        Toast.makeText(MainActivity.this, 
+                            "图片生成超时或出错，请重试", 
+                            Toast.LENGTH_SHORT).show();
                     }
                 });
+            } catch (InterruptedException e) {
+                Log.e("MindPic", "Image generation interrupted", e);
             }
-        }
+        }).start();
     }
 
     // 适配器类
@@ -682,9 +756,15 @@ public class MainActivity extends AppCompatActivity {
             Log.d("MindPic", "onBindViewHolder: position=" + position);
             Bitmap bmp = segmentBitmapCache.get(position);
             if (bmp != null) {
-                holder.imageView.setImageBitmap(bmp);
+                Glide.with(holder.imageView)
+                    .load(bmp)
+                    .diskCacheStrategy(DiskCacheStrategy.NONE) // 由于是内存中的 Bitmap，不需要磁盘缓存
+                    .skipMemoryCache(true) // 由于使用了自定义的 segmentBitmapCache，不需要 Glide 的内存缓存
+                    .into(holder.imageView);
             } else {
-                holder.imageView.setImageResource(R.drawable.leaf);
+                Glide.with(holder.imageView)
+                    .load(R.drawable.leaf)
+                    .into(holder.imageView);
             }
         }
         @Override
