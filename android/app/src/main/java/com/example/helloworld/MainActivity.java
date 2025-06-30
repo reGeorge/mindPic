@@ -625,7 +625,21 @@ public class MainActivity extends AppCompatActivity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final boolean success = saveBitmapToGalleryWithName(generatedBitmap, "mindpic_single.png");
+                // 使用当前选中段落的参数重新生成导出图片
+                SegmentData seg = segmentList.get(currentSegmentIndex);
+                final Bitmap exportBitmap = generateExportImage(
+                    seg.text,
+                    seg.selectedFont,
+                    seg.selectedBg,
+                    seg.fontSize,
+                    seg.textOffsetX,
+                    seg.textOffsetY,
+                    seg.textRotation,
+                    seg.offsetXProgress,
+                    seg.textAlign
+                );
+                
+                final boolean success = saveBitmapToGalleryWithName(exportBitmap, "mindpic_single.png");
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -656,6 +670,10 @@ public class MainActivity extends AppCompatActivity {
                             snackbarView.setLayoutParams(params);
                             snackbar.show();
                             snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
+                        }
+                        // 释放导出图片的内存
+                        if (exportBitmap != null && !exportBitmap.isRecycled()) {
+                            exportBitmap.recycle();
                         }
                     }
                 });
