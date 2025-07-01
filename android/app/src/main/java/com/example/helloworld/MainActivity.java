@@ -69,6 +69,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.LinkedBlockingQueue;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -138,13 +140,21 @@ public class MainActivity extends AppCompatActivity {
         private boolean hasPasted = false;
         @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
         @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-            // 先将"=="替换为特殊分段符，再用正则分段（3个及以上换行或==都算分段）
-            String processed = s.toString().replace("==", "<SPLIT>");
-            // 用正则将2个及以上换行和<SPLIT>都作为分段符
-            String[] segments = processed.split("(<SPLIT>|\n{2,})");
+            // 检查是否有"----"分割符
+            String fullText = s.toString();
+            String lowerText = fullText;
+            int splitIndex = lowerText.indexOf("----");
+            String renderText = fullText;
+            if (splitIndex != -1) {
+                // 存在"----"，只渲染下方文本
+                renderText = fullText.substring(splitIndex + 4);
+            }
+            // 以两个等号"=="作为分段符，分割后去除每个段落前后的换行符和空白
+            String[] segments = renderText.split("==");
             segmentList.clear();
             for (int i = 0; i < segments.length; i++) {
-                segmentList.add(new SegmentData(segments[i].trim(), i));
+                String seg = segments[i].replaceAll("^\\s+|\\s+$", ""); // 去除前后空白和换行
+                segmentList.add(new SegmentData(seg, i));
             }
             currentSegmentIndex = 0;
             updateSegmentUI();
@@ -510,7 +520,24 @@ public class MainActivity extends AppCompatActivity {
         });
 
         MaterialButton btnSaveAndShare = findViewById(R.id.btnSaveAndShare);
-        btnSaveAndShare.setOnClickListener(v -> saveAndShareToXiaoHongShu());
+        btnSaveAndShare.setOnClickListener(v -> {
+            // 复制上方文本到剪贴板（如有"----"分割），否则复制全部
+            String fullText = etInput.getText().toString();
+            int splitIndex = fullText.indexOf("----");
+            String copyText;
+            if (splitIndex != -1) {
+                copyText = fullText.substring(0, splitIndex).replaceAll("^\\s+|\\s+$", "");
+            } else {
+                copyText = fullText;
+            }
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("mindpic_text", copyText);
+            clipboard.setPrimaryClip(clip);
+            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "已复制到剪贴板", Snackbar.LENGTH_SHORT);
+            snackbar.show();
+            // 执行原有分享逻辑
+            saveAndShareToXiaoHongShu();
+        });
 
         // 优化 ViewPager2 配置
         previewPager.setOffscreenPageLimit(2); // 预加载前后各2页
