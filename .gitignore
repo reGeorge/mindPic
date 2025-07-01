@@ -1,1 +1,27 @@
 node_modules
+
+# Android build files
+/android/app/build/
+/android/build/
+/android/.gradle/
+/android/.idea/
+/android/local.properties
+/android/.DS_Store
+/android/app/.cxx/
+/android/app/intermediates/
+/android/app/generated/
+/android/app/.DS_Store
+# Gradle
+.gradle/
+build/
+# IDE
+.idea/
+*.iml
+# Mac
+.DS_Store
+
+# Android keystore
+android/app/my-release-key.jks
+# 常见密钥配置文件
+android/keystore.properties
+android/app/keystore.properties
