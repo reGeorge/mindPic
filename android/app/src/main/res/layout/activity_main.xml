@@ -30,7 +30,7 @@
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp"
-                android:layout_marginBottom="2dp">
+                android:layout_marginBottom="32dp">
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -94,7 +94,7 @@
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp"
-                android:layout_marginBottom="8dp">
+                android:layout_marginBottom="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -201,28 +201,12 @@
                             android:text="本地图片" />
 
                         <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnBg3"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="月亮1" />
-
-                        <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBg1"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="叶子" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnBg2"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="月亮2" />
                     </com.google.android.material.button.MaterialButtonToggleGroup>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -236,7 +220,8 @@
                 android:gravity="center"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:background="@android:color/transparent">
+                android:background="@android:color/transparent"
+                android:layout_marginBottom="16dp">
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSave"
                     android:layout_width="0dp"
@@ -306,6 +291,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginBottom="16dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="4dp">
             <com.google.android.material.textfield.TextInputLayout

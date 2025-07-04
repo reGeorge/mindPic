@@ -78,21 +78,21 @@ import com.google.android.material.textfield.TextInputEditText;
 class SegmentData {
     String text;
     int selectedFont = 1; // 默认洒脱体
-    int selectedBg = 0; // 0/1/2为内置，-1为本地
+    int selectedBg = 0; // 0为叶子，-1为本地
     int fontSize = 60;
     float textOffsetX = 0f, textOffsetY = 0f, textRotation = 0f;
     int offsetXProgress = 0;
     Layout.Alignment textAlign = Layout.Alignment.ALIGN_OPPOSITE;
-    // 新增本地图片字段
     android.net.Uri localBgUri = null;
     Bitmap localBgBitmap = null;
     int localBgWidth = 0;
     int localBgHeight = 0;
+    long localBgCreateTime = 0L; // 新增字段
     SegmentData(String text, int index) {
         this.text = text;
         this.fontSize = 60;
-        this.selectedFont = 1; // 始终为洒脱体
-        this.textAlign = Layout.Alignment.ALIGN_OPPOSITE; // 默认右对齐
+        this.selectedFont = 1;
+        this.textAlign = Layout.Alignment.ALIGN_OPPOSITE;
         this.offsetXProgress = 0;
     }
 }
@@ -104,8 +104,8 @@ public class MainActivity extends AppCompatActivity {
     private PreviewPagerAdapter previewPagerAdapter;
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
-    private String[] bgNames = {"月亮1","叶子", "月亮2"};
-    private int[] bgResIds = { R.drawable.leaf,R.drawable.moon1, R.drawable.moon2};
+    private String[] bgNames = {"叶子"};
+    private int[] bgResIds = { R.drawable.leaf };
     private int selectedBg = 0;
     private Slider seekBarSize;
     private TextView tvSizeLabel;
@@ -164,6 +164,7 @@ public class MainActivity extends AppCompatActivity {
                     newSeg.localBgBitmap = oldList.get(i).localBgBitmap;
                     newSeg.localBgWidth = oldList.get(i).localBgWidth;
                     newSeg.localBgHeight = oldList.get(i).localBgHeight;
+                    newSeg.localBgCreateTime = oldList.get(i).localBgCreateTime;
                 }
                 segmentList.add(newSeg);
             }
@@ -526,9 +527,8 @@ public class MainActivity extends AppCompatActivity {
         btnBgLocal.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 触发系统图片选择器
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                // 优先唤起系统相册
+                Intent intent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
                 intent.setType("image/*");
                 startActivityForResult(intent, 2001);
             }
@@ -836,6 +836,41 @@ public class MainActivity extends AppCompatActivity {
             }
             staticLayout.draw(canvas);
             canvas.restore();
+            if (isLocalBlur) {
+                long t = segmentList.get(currentSegmentIndex).localBgCreateTime;
+                android.util.Log.i("MindPic", "图片生成: isLocalBlur, createTime=" + t);
+                if (t > 0) {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
+                    String timeStr = sdf.format(new java.util.Date(t));
+                    float timeY = canvasH - canvasH / 40f;
+                    float timeX = canvasW / 30f;
+                    // 日期字号为主文字字号一半
+                    float mainTextSize = fontSize * Math.min(canvasW, canvasH) / 1000f;
+                    float timeTextSize = mainTextSize / 2f;
+                    Paint timePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                    timePaint.setTextSize(timeTextSize);
+                    timePaint.setTextAlign(Paint.Align.LEFT);
+                    // 设置字体
+                    try {
+                        Typeface typeface = Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]);
+                        timePaint.setTypeface(typeface);
+                    } catch (Exception e) {
+                        timePaint.setTypeface(Typeface.DEFAULT);
+                    }
+                    // 先画深色描边
+                    timePaint.setStyle(Paint.Style.STROKE);
+                    timePaint.setStrokeWidth(4f);
+                    timePaint.setColor(0x80000000);
+                    canvas.drawText(timeStr, timeX, timeY, timePaint);
+                    // 再画白色文字
+                    timePaint.setStyle(Paint.Style.FILL);
+                    timePaint.setColor(0xFFFFFFFF);
+                    canvas.drawText(timeStr, timeX, timeY, timePaint);
+                    android.util.Log.i("MindPic", "已绘制时间: " + timeStr);
+                } else {
+                    android.util.Log.i("MindPic", "未绘制时间: createTime=0");
+                }
+            }
             return result;
         } catch (Exception e) {
             return result;
@@ -971,8 +1006,6 @@ public class MainActivity extends AppCompatActivity {
             // 更新背景选择
             if (seg.selectedBg == -1) groupBg.check(R.id.btnBgLocal);
             else if (seg.selectedBg == 0) groupBg.check(R.id.btnBg1);
-            else if (seg.selectedBg == 1) groupBg.check(R.id.btnBg2);
-            else if (seg.selectedBg == 2) groupBg.check(R.id.btnBg3);
             
             // 更新对齐方式
             if (seg.textAlign == Layout.Alignment.ALIGN_NORMAL) groupAlign.check(R.id.btnAlignLeft);
@@ -994,13 +1027,22 @@ public class MainActivity extends AppCompatActivity {
         if (seg.selectedBg == -1 && seg.localBgWidth > 0 && seg.localBgHeight > 0) {
             float ratio = (float) seg.localBgWidth / seg.localBgHeight;
             int containerW = previewContainer.getWidth();
+            int screenH = getResources().getDisplayMetrics().heightPixels;
             if (containerW == 0) {
                 previewContainer.post(this::updatePreviewPagerHeight);
                 return;
             }
-            int newH = (int) (containerW / ratio);
+            int newH, newW;
+            if (ratio < 1) { // 纵向图片
+                int maxH = screenH / 2;
+                newH = Math.min((int) (containerW / ratio), maxH);
+                newW = (int) (newH * ratio);
+            } else {
+                newW = containerW;
+                newH = (int) (containerW / ratio);
+            }
             lp.height = newH;
-            lp.width = ConstraintLayout.LayoutParams.MATCH_PARENT;
+            lp.width = newW;
             previewPager.setLayoutParams(lp);
         } else {
             // 恢复默认高度
@@ -1410,10 +1452,50 @@ public class MainActivity extends AppCompatActivity {
                     seg.localBgBitmap = bitmap;
                     seg.localBgWidth = bitmap.getWidth();
                     seg.localBgHeight = bitmap.getHeight();
+                    // 获取图片创建时间
+                    long createTime = 0L;
+                    String[] proj = {MediaStore.Images.Media.DATE_TAKEN, MediaStore.Images.Media.DATE_ADDED};
+                    try (android.database.Cursor cursor = getContentResolver().query(uri, proj, null, null, null)) {
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int idxTaken = cursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN);
+                            int idxAdded = cursor.getColumnIndex(MediaStore.Images.Media.DATE_ADDED);
+                            if (idxTaken >= 0) createTime = cursor.getLong(idxTaken);
+                            if (createTime == 0 && idxAdded >= 0) createTime = cursor.getLong(idxAdded) * 1000L;
+                        }
+                    } catch (Exception ignore) {}
+                    // 兜底：用文件lastModified
+                    if (createTime == 0) {
+                        try {
+                            android.net.Uri fileUri = uri;
+                            String path = null;
+                            // 尝试通过ContentResolver获取真实路径
+                            String[] fileProj = {MediaStore.Images.Media.DATA};
+                            try (android.database.Cursor c = getContentResolver().query(uri, fileProj, null, null, null)) {
+                                if (c != null && c.moveToFirst()) {
+                                    int idx = c.getColumnIndex(MediaStore.Images.Media.DATA);
+                                    if (idx >= 0) path = c.getString(idx);
+                                }
+                            } catch (Exception ignore) {}
+                            if (path != null) {
+                                java.io.File f = new java.io.File(path);
+                                if (f.exists()) createTime = f.lastModified();
+                            } else {
+                                // SAF方式
+                                try {
+                                    androidx.documentfile.provider.DocumentFile docFile = androidx.documentfile.provider.DocumentFile.fromSingleUri(this, uri);
+                                    if (docFile != null && docFile.lastModified() > 0) createTime = docFile.lastModified();
+                                } catch (Exception ignore) {}
+                            }
+                        } catch (Exception ignore) {}
+                    }
+                    seg.localBgCreateTime = createTime;
+                    android.util.Log.i("MindPic", "图片选择: uri=" + uri + ", createTime=" + createTime);
                 } catch (Exception e) {
                     seg.localBgBitmap = null;
                     seg.localBgWidth = 0;
                     seg.localBgHeight = 0;
+                    seg.localBgCreateTime = 0L;
+                    android.util.Log.w("MindPic", "图片选择异常: " + e.getMessage());
                 }
                 autoGenerateAllSegmentImages();
             }
