@@ -223,34 +223,6 @@
                             android:text="右对齐"/>
                     </com.google.android.material.button.MaterialButtonToggleGroup>
                     <com.google.android.material.button.MaterialButtonToggleGroup
-                        android:id="@+id/groupFont"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        app:singleSelection="true">
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnFont1"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="韶华体"/>
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnFont2"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="洒脱体"/>
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnFont3"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="上上谦体"/>
-                    </com.google.android.material.button.MaterialButtonToggleGroup>
-                    <com.google.android.material.button.MaterialButtonToggleGroup
                         android:id="@+id/groupBg"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

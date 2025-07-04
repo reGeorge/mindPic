@@ -75,7 +75,7 @@ import android.content.ClipData;
 // 新建 SegmentData 类
 class SegmentData {
     String text;
-    int selectedFont = 1;
+    int selectedFont = 1; // 默认洒脱体
     int selectedBg = 0;
     int fontSize = 60;
     float textOffsetX = 0f, textOffsetY = 0f, textRotation = 0f;
@@ -84,6 +84,7 @@ class SegmentData {
     SegmentData(String text, int index) {
         this.text = text;
         this.fontSize = 60;
+        this.selectedFont = 1; // 始终为洒脱体
         if (index == 0) {
             this.textAlign = Layout.Alignment.ALIGN_CENTER;
             this.offsetXProgress = 0;
@@ -100,11 +101,10 @@ public class MainActivity extends AppCompatActivity {
     private androidx.viewpager2.widget.ViewPager2 previewPager;
     private PreviewPagerAdapter previewPagerAdapter;
     // private Spinner spinnerFont, spinnerBg, spinnerAlign; // 已废弃
-    private String[] fontNames = {"平方韶华体", "平方洒脱体", "平方上上谦体"};
     private String[] fontFiles = {"fonts/平方韶华体.ttf", "fonts/平方洒脱体.ttf", "fonts/平方上上谦体.ttf"};
     private String[] bgNames = {"月亮1","叶子", "月亮2"};
     private int[] bgResIds = { R.drawable.leaf,R.drawable.moon1, R.drawable.moon2};
-    private int selectedFont = 0, selectedBg = 0;
+    private int selectedBg = 0;
     private Slider seekBarSize;
     private TextView tvSizeLabel;
     private int fontSize = 150;
@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
     private ScaleGestureDetector scaleGestureDetector;
     private Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
     private String[] alignNames = {"居左对齐", "居中对齐", "居右对齐"};
-    private MaterialButtonToggleGroup groupFont, groupBg, groupAlign;
+    private MaterialButtonToggleGroup groupBg, groupAlign;
     private Bitmap generatedBitmap;
     private Slider seekBarOffsetX;
     private TextView tvOffsetXLabel;
@@ -197,7 +197,6 @@ public class MainActivity extends AppCompatActivity {
         previewPager = findViewById(R.id.previewPager);
         seekBarSize = findViewById(R.id.seekBarSize);
         tvSizeLabel = findViewById(R.id.tvSizeLabel);
-        groupFont = findViewById(R.id.groupFont);
         groupBg = findViewById(R.id.groupBg);
         groupAlign = findViewById(R.id.groupAlign);
         seekBarOffsetX = findViewById(R.id.seekBarOffsetX);
@@ -339,10 +338,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // 默认字体选中平方洒脱体
-        groupFont.check(R.id.btnFont2);
         groupBg.check(R.id.btnBg1);
         groupAlign.check(R.id.btnAlignCenter);
-        selectedFont = 1;
         selectedBg = 0;
         textAlign = Layout.Alignment.ALIGN_CENTER;
 
@@ -372,28 +369,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        groupFont.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
-            @Override
-            public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
-                if (!isChecked || segmentList.isEmpty()) return;
-                SegmentData seg = segmentList.get(currentSegmentIndex);
-                if (checkedId == findViewById(R.id.btnFont1).getId()) seg.selectedFont = 0;
-                else if (checkedId == findViewById(R.id.btnFont2).getId()) seg.selectedFont = 1;
-                else if (checkedId == findViewById(R.id.btnFont3).getId()) seg.selectedFont = 2;
-                autoGenerateAllSegmentImages();
-            }
-        });
-        groupBg.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
-            @Override
-            public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
-                if (!isChecked || segmentList.isEmpty()) return;
-                SegmentData seg = segmentList.get(currentSegmentIndex);
-                if (checkedId == findViewById(R.id.btnBg1).getId()) seg.selectedBg = 0;
-                else if (checkedId == findViewById(R.id.btnBg2).getId()) seg.selectedBg = 1;
-                else if (checkedId == findViewById(R.id.btnBg3).getId()) seg.selectedBg = 2;
-                autoGenerateAllSegmentImages();
-            }
-        });
         groupAlign.addOnButtonCheckedListener(new MaterialButtonToggleGroup.OnButtonCheckedListener() {
             @Override
             public void onButtonChecked(MaterialButtonToggleGroup group, int checkedId, boolean isChecked) {
@@ -785,11 +760,6 @@ public class MainActivity extends AppCompatActivity {
             tvSizeLabel.setText("字号：" + seg.fontSize);
             seekBarOffsetX.setValue(seg.offsetXProgress);
             tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
-            
-            // 更新字体选择
-            if (seg.selectedFont == 0) groupFont.check(R.id.btnFont1);
-            else if (seg.selectedFont == 1) groupFont.check(R.id.btnFont2);
-            else if (seg.selectedFont == 2) groupFont.check(R.id.btnFont3);
             
             // 更新背景选择
             if (seg.selectedBg == 0) groupBg.check(R.id.btnBg1);
