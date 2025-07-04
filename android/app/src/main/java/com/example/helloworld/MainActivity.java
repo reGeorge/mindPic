@@ -76,22 +76,22 @@ import android.content.ClipData;
 class SegmentData {
     String text;
     int selectedFont = 1; // 默认洒脱体
-    int selectedBg = 0;
+    int selectedBg = 0; // 0/1/2为内置，-1为本地
     int fontSize = 60;
     float textOffsetX = 0f, textOffsetY = 0f, textRotation = 0f;
     int offsetXProgress = 0;
-    Layout.Alignment textAlign = Layout.Alignment.ALIGN_CENTER;
+    Layout.Alignment textAlign = Layout.Alignment.ALIGN_OPPOSITE;
+    // 新增本地图片字段
+    android.net.Uri localBgUri = null;
+    Bitmap localBgBitmap = null;
+    int localBgWidth = 0;
+    int localBgHeight = 0;
     SegmentData(String text, int index) {
         this.text = text;
         this.fontSize = 60;
         this.selectedFont = 1; // 始终为洒脱体
-        if (index == 0) {
-            this.textAlign = Layout.Alignment.ALIGN_CENTER;
-            this.offsetXProgress = 0;
-        } else {
-            this.textAlign = Layout.Alignment.ALIGN_NORMAL;
-            this.offsetXProgress = 0;
-        }
+        this.textAlign = Layout.Alignment.ALIGN_OPPOSITE; // 默认右对齐
+        this.offsetXProgress = 0;
     }
 }
 
@@ -151,10 +151,21 @@ public class MainActivity extends AppCompatActivity {
             }
             // 以两个等号"=="作为分段符，分割后去除每个段落前后的换行符和空白
             String[] segments = renderText.split("==");
+            // 先备份原有段落的背景信息
+            List<SegmentData> oldList = new ArrayList<>(segmentList);
             segmentList.clear();
             for (int i = 0; i < segments.length; i++) {
                 String seg = segments[i].replaceAll("^\\s+|\\s+$", ""); // 去除前后空白和换行
-                segmentList.add(new SegmentData(seg, i));
+                SegmentData newSeg = new SegmentData(seg, i);
+                // 尝试继承原有段落的背景设置
+                if (i < oldList.size()) {
+                    newSeg.selectedBg = oldList.get(i).selectedBg;
+                    newSeg.localBgUri = oldList.get(i).localBgUri;
+                    newSeg.localBgBitmap = oldList.get(i).localBgBitmap;
+                    newSeg.localBgWidth = oldList.get(i).localBgWidth;
+                    newSeg.localBgHeight = oldList.get(i).localBgHeight;
+                }
+                segmentList.add(newSeg);
             }
             currentSegmentIndex = 0;
             updateSegmentUI();
@@ -185,6 +196,9 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton btnGenerate;
     private MaterialButton btnSaveAll;
 
+    private ConstraintLayout previewContainer;
+    private int defaultPreviewPagerHeight = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
@@ -195,6 +209,7 @@ public class MainActivity extends AppCompatActivity {
         btnSave = findViewById(R.id.btnSave);
         etInput = findViewById(R.id.etInput);
         previewPager = findViewById(R.id.previewPager);
+        previewContainer = (ConstraintLayout) previewPager.getParent();
         seekBarSize = findViewById(R.id.seekBarSize);
         tvSizeLabel = findViewById(R.id.tvSizeLabel);
         groupBg = findViewById(R.id.groupBg);
@@ -532,6 +547,24 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e("MindPic", "Error configuring ViewPager2", e);
         }
+
+        // 初始化btnBgLocal
+        MaterialButton btnBgLocal = findViewById(R.id.btnBgLocal);
+        btnBgLocal.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 触发系统图片选择器
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                startActivityForResult(intent, 2001);
+            }
+        });
+
+        // 记录默认高度
+        previewPager.post(() -> {
+            defaultPreviewPagerHeight = previewPager.getHeight();
+        });
     }
 
     // 渲染当前段落图片
@@ -550,87 +583,268 @@ public class MainActivity extends AppCompatActivity {
 
     // 生成预览用图片（优化尺寸）
     private Bitmap generatePreviewImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        try {
-            // 预览时使用较小的尺寸以提升性能
-            int previewSize = 800;
-            return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, previewSize);
-        } catch (Exception e) {
-            Log.e("MindPic", "Error in generatePreviewImage: " + e.getMessage());
-            e.printStackTrace();
-            throw e; // 向上传递异常以便更好地处理
+        SegmentData seg = segmentList.get(currentSegmentIndex);
+        int previewW = 800, previewH = 800;
+        if (seg.selectedBg == -1 && seg.localBgBitmap != null) {
+            float ratio = seg.localBgWidth > 0 && seg.localBgHeight > 0 ? (float)seg.localBgWidth / seg.localBgHeight : 1f;
+            if (ratio >= 1) {
+                previewW = 800;
+                previewH = (int)(800 / ratio);
+            } else {
+                previewH = 800;
+                previewW = (int)(800 * ratio);
+            }
         }
+        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, previewW, previewH);
     }
 
     // 生成导出用大尺寸图片
     private Bitmap generateExportImage(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign) {
-        // 导出时使用更高的分辨率
-        int exportSize = 1200;
-        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, exportSize);
+        SegmentData seg = segmentList.get(currentSegmentIndex);
+        int exportW = 1200, exportH = 1200;
+        if (seg.selectedBg == -1 && seg.localBgBitmap != null) {
+            float ratio = seg.localBgWidth > 0 && seg.localBgHeight > 0 ? (float)seg.localBgWidth / seg.localBgHeight : 1f;
+            if (ratio >= 1) {
+                exportW = 1200;
+                exportH = (int)(1200 / ratio);
+            } else {
+                exportH = 1200;
+                exportW = (int)(1200 * ratio);
+            }
+        }
+        return generateImageWithSize(text, selectedFont, selectedBg, fontSize, textOffsetX, textOffsetY, textRotation, offsetXProgress, textAlign, exportW, exportH);
     }
 
-    // 通用尺寸图片生成（优化性能）
-    private Bitmap generateImageWithSize(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign, int canvasSize) {
+    // 在MainActivity类内添加一个简单的高斯模糊方法
+    private Bitmap fastBlur(Bitmap sentBitmap, int radius) {
+        // StackBlur算法，适合小区域模糊，性能好于RenderScript
+        if (radius < 1) {
+            return null;
+        }
+        Bitmap bitmap = sentBitmap.copy(sentBitmap.getConfig(), true);
+        int w = bitmap.getWidth();
+        int h = bitmap.getHeight();
+        int[] pix = new int[w * h];
+        bitmap.getPixels(pix, 0, w, 0, 0, w, h);
+        int wm = w - 1;
+        int hm = h - 1;
+        int wh = w * h;
+        int div = radius + radius + 1;
+        int[] r = new int[wh];
+        int[] g = new int[wh];
+        int[] b = new int[wh];
+        int rsum, gsum, bsum, x, y, i, p1, p2, yi;
+        int[] vmin = new int[Math.max(w, h)];
+        int divsum = (div + 1) >> 1;
+        divsum *= divsum;
+        int[] dv = new int[256 * divsum];
+        for (i = 0; i < 256 * divsum; i++) {
+            dv[i] = (i / divsum);
+        }
+        int yw = 0, yi2 = 0;
+        int[][] stack = new int[div][3];
+        int stackpointer, stackstart;
+        int[] sir;
+        int rbs;
+        int routsum, goutsum, boutsum;
+        int rinsum, ginsum, binsum;
+        for (y = 0; y < h; y++) {
+            rinsum = ginsum = binsum = routsum = goutsum = boutsum = rsum = gsum = bsum = 0;
+            for (i = -radius; i <= radius; i++) {
+                int p = pix[yi2 + Math.min(wm, Math.max(i, 0))];
+                sir = stack[i + radius];
+                sir[0] = (p & 0xff0000) >> 16;
+                sir[1] = (p & 0x00ff00) >> 8;
+                sir[2] = (p & 0x0000ff);
+                rbs = radius + 1 - Math.abs(i);
+                rsum += sir[0] * rbs;
+                gsum += sir[1] * rbs;
+                bsum += sir[2] * rbs;
+                if (i > 0) {
+                    rinsum += sir[0];
+                    ginsum += sir[1];
+                    binsum += sir[2];
+                } else {
+                    routsum += sir[0];
+                    goutsum += sir[1];
+                    boutsum += sir[2];
+                }
+            }
+            stackpointer = radius;
+            for (x = 0; x < w; x++) {
+                r[yi2] = dv[rsum];
+                g[yi2] = dv[gsum];
+                b[yi2] = dv[bsum];
+                rsum -= routsum;
+                gsum -= goutsum;
+                bsum -= boutsum;
+                stackstart = stackpointer - radius + div;
+                sir = stack[stackstart % div];
+                routsum -= sir[0];
+                goutsum -= sir[1];
+                boutsum -= sir[2];
+                if (y == 0) {
+                    vmin[x] = Math.min(x + radius + 1, wm);
+                }
+                int p = pix[yw + vmin[x]];
+                sir[0] = (p & 0xff0000) >> 16;
+                sir[1] = (p & 0x00ff00) >> 8;
+                sir[2] = (p & 0x0000ff);
+                rinsum += sir[0];
+                ginsum += sir[1];
+                binsum += sir[2];
+                rsum += rinsum;
+                gsum += ginsum;
+                bsum += binsum;
+                stackpointer = (stackpointer + 1) % div;
+                sir = stack[(stackpointer) % div];
+                routsum += sir[0];
+                goutsum += sir[1];
+                boutsum += sir[2];
+                rinsum -= sir[0];
+                ginsum -= sir[1];
+                binsum -= sir[2];
+                yi2++;
+            }
+            yw += w;
+        }
+        for (x = 0; x < w; x++) {
+            rinsum = ginsum = binsum = routsum = goutsum = boutsum = rsum = gsum = bsum = 0;
+            int yp = -radius * w;
+            for (i = -radius; i <= radius; i++) {
+                yi = Math.max(0, yp) + x;
+                sir = stack[i + radius];
+                sir[0] = r[yi];
+                sir[1] = g[yi];
+                sir[2] = b[yi];
+                rbs = radius + 1 - Math.abs(i);
+                rsum += r[yi] * rbs;
+                gsum += g[yi] * rbs;
+                bsum += b[yi] * rbs;
+                if (i > 0) {
+                    rinsum += sir[0];
+                    ginsum += sir[1];
+                    binsum += sir[2];
+                } else {
+                    routsum += sir[0];
+                    goutsum += sir[1];
+                    boutsum += sir[2];
+                }
+                if (i < hm) {
+                    yp += w;
+                }
+            }
+            yi = x;
+            stackpointer = radius;
+            for (y = 0; y < h; y++) {
+                pix[yi] = (0xff000000 & pix[yi]) | (dv[rsum] << 16) | (dv[gsum] << 8) | dv[bsum];
+                rsum -= routsum;
+                gsum -= goutsum;
+                bsum -= boutsum;
+                stackstart = stackpointer - radius + div;
+                sir = stack[stackstart % div];
+                routsum -= sir[0];
+                goutsum -= sir[1];
+                boutsum -= sir[2];
+                if (x == 0) {
+                    vmin[y] = Math.min(y + radius + 1, hm) * w;
+                }
+                int p = x + vmin[y];
+                sir[0] = r[p];
+                sir[1] = g[p];
+                sir[2] = b[p];
+                rinsum += sir[0];
+                ginsum += sir[1];
+                binsum += sir[2];
+                rsum += rinsum;
+                gsum += ginsum;
+                bsum += binsum;
+                stackpointer = (stackpointer + 1) % div;
+                sir = stack[stackpointer];
+                routsum += sir[0];
+                goutsum += sir[1];
+                boutsum += sir[2];
+                rinsum -= sir[0];
+                ginsum -= sir[1];
+                binsum -= sir[2];
+                yi += w;
+            }
+        }
+        bitmap.setPixels(pix, 0, w, 0, 0, w, h);
+        return bitmap;
+    }
+
+    // 修改generateImageWithSize方法，恢复文字为白色+深色描边
+    private Bitmap generateImageWithSize(String text, int selectedFont, int selectedBg, int fontSize, float textOffsetX, float textOffsetY, float textRotation, int offsetXProgress, Layout.Alignment textAlign, int canvasW, int canvasH) {
         if (text == null) {
             text = "";
         }
-
-        // 创建位图
-        Bitmap result = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888);
+        Bitmap result = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(result);
-        
         try {
-            // 绘制背景
-            Bitmap bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
+            Bitmap bg = null;
+            boolean isLocalBlur = false;
+            if (selectedBg == -1 && segmentList.get(currentSegmentIndex).localBgBitmap != null) {
+                bg = segmentList.get(currentSegmentIndex).localBgBitmap;
+                isLocalBlur = true;
+            } else if (selectedBg >= 0 && selectedBg < bgResIds.length) {
+                bg = BitmapFactory.decodeResource(getResources(), bgResIds[selectedBg]);
+            }
             if (bg != null) {
                 Rect srcRect = new Rect(0, 0, bg.getWidth(), bg.getHeight());
-                Rect dstRect = new Rect(0, 0, canvasSize, canvasSize);
+                Rect dstRect = new Rect(0, 0, canvasW, canvasH);
                 canvas.drawBitmap(bg, srcRect, dstRect, null);
             }
-
+            if (isLocalBlur) {
+                // 计算底部1/5区域
+                int blurH = canvasH / 5;
+                int blurY = canvasH - blurH;
+                Bitmap blurSrc = Bitmap.createBitmap(result, 0, blurY, canvasW, blurH);
+                Bitmap blurBmp = fastBlur(blurSrc, Math.max(3, blurH/40)); // 降低模糊强度
+                // 半透明遮罩增强可读性
+                Canvas blurCanvas = new Canvas(blurBmp);
+                Paint maskPaint = new Paint();
+                maskPaint.setColor(0x22FFFFFF); // 更低透明度，几乎看不出遮罩
+                blurCanvas.drawRect(0, 0, canvasW, blurH, maskPaint);
+                // 绘制回主画布
+                canvas.drawBitmap(blurBmp, 0, blurY, null);
+                blurSrc.recycle();
+                blurBmp.recycle();
+            }
             // 优化文字渲染
             TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             try {
                 Typeface typeface = Typeface.createFromAsset(getAssets(), fontFiles[selectedFont]);
                 textPaint.setTypeface(typeface);
             } catch (Exception e) {
-                Log.e("MindPic", "Error loading typeface: " + e.getMessage());
                 textPaint.setTypeface(Typeface.DEFAULT);
             }
-            
-            textPaint.setTextSize(fontSize * canvasSize / 1000f);
-            textPaint.setColor(0xFFFFFFFF);
-            textPaint.setShadowLayer(4, 2, 2, 0x80000000);
-
-            // 文字布局优化
-            int minPadding = (int)(64 * canvasSize / 1000f);
-            int textBlockWidth = canvasSize - 2 * minPadding;
-
-            // 使用 StaticLayout.Builder 优化文字排版
+            textPaint.setTextSize(fontSize * Math.min(canvasW, canvasH) / 1000f);
+            textPaint.setColor(0xFFFFFFFF); // 白色文字
+            textPaint.setShadowLayer(4, 2, 2, 0x80000000); // 深色阴影描边
+            int minPadding = (int)(64 * Math.min(canvasW, canvasH) / 1000f);
+            int textBlockWidth = canvasW - 2 * minPadding;
+            float lineSpacingMultiplier = (isLocalBlur ? 1.2f : 2.0f);
             StaticLayout staticLayout = StaticLayout.Builder.obtain(text, 0, text.length(), textPaint, textBlockWidth)
                     .setAlignment(textAlign)
-                    .setLineSpacing(0f, 2.0f) // 增加行距
-                    .setIncludePad(false)
+                    .setLineSpacing(0f, lineSpacingMultiplier)
+                    .setIncludePad(true)
                     .build();
-
             canvas.save();
-            
-            // 计算文字位置
-            float layoutX = (canvasSize - textBlockWidth) / 2f + offsetXProgress * canvasSize / 1000f;
-            float layoutY = (canvasSize - staticLayout.getHeight()) / 2f;
-            
-            // 应用变换
-            canvas.translate(layoutX, layoutY);
-            
-            // 绘制文字
+            if (isLocalBlur) {
+                // 文字绘制到底部1/5区域内，垂直居中
+                float layoutX = (canvasW - textBlockWidth) / 2f + offsetXProgress * canvasW / 1000f;
+                float layoutY = canvasH * 4f / 5f + (canvasH / 5f - staticLayout.getHeight()) / 2f;
+                canvas.translate(layoutX, layoutY);
+            } else {
+                float layoutX = (canvasW - textBlockWidth) / 2f + offsetXProgress * canvasW / 1000f;
+                float layoutY = (canvasH - staticLayout.getHeight()) / 2f;
+                canvas.translate(layoutX, layoutY);
+            }
             staticLayout.draw(canvas);
-            
             canvas.restore();
-            
             return result;
         } catch (Exception e) {
-            Log.e("MindPic", "Error in generateImageWithSize: " + e.getMessage());
-            e.printStackTrace();
-            // 如果生成失败，返回空白图片
             return result;
         }
     }
@@ -762,7 +976,8 @@ public class MainActivity extends AppCompatActivity {
             tvOffsetXLabel.setText("水平偏移：" + seg.offsetXProgress);
             
             // 更新背景选择
-            if (seg.selectedBg == 0) groupBg.check(R.id.btnBg1);
+            if (seg.selectedBg == -1) groupBg.check(R.id.btnBgLocal);
+            else if (seg.selectedBg == 0) groupBg.check(R.id.btnBg1);
             else if (seg.selectedBg == 1) groupBg.check(R.id.btnBg2);
             else if (seg.selectedBg == 2) groupBg.check(R.id.btnBg3);
             
@@ -774,6 +989,32 @@ public class MainActivity extends AppCompatActivity {
             // 如果当前图片还没有生成，触发生成
             if (segmentBitmapCache.get(currentSegmentIndex) == null) {
                 generateImageAsync(currentSegmentIndex);
+            }
+        }
+        updatePreviewPagerHeight();
+    }
+
+    // 新增方法：动态设置预览区高度
+    private void updatePreviewPagerHeight() {
+        SegmentData seg = segmentList.get(currentSegmentIndex);
+        ConstraintLayout.LayoutParams lp = (ConstraintLayout.LayoutParams) previewPager.getLayoutParams();
+        if (seg.selectedBg == -1 && seg.localBgWidth > 0 && seg.localBgHeight > 0) {
+            float ratio = (float) seg.localBgWidth / seg.localBgHeight;
+            int containerW = previewContainer.getWidth();
+            if (containerW == 0) {
+                previewContainer.post(this::updatePreviewPagerHeight);
+                return;
+            }
+            int newH = (int) (containerW / ratio);
+            lp.height = newH;
+            lp.width = ConstraintLayout.LayoutParams.MATCH_PARENT;
+            previewPager.setLayoutParams(lp);
+        } else {
+            // 恢复默认高度
+            if (defaultPreviewPagerHeight > 0) {
+                lp.height = defaultPreviewPagerHeight;
+                lp.width = ConstraintLayout.LayoutParams.MATCH_PARENT;
+                previewPager.setLayoutParams(lp);
             }
         }
     }
@@ -821,25 +1062,28 @@ public class MainActivity extends AppCompatActivity {
 
                     if (TextUtils.isEmpty(seg.text)) {
                         try {
-                            // 在主线程中加载资源
-                            CountDownLatch latch = new CountDownLatch(1);
-                            final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>();
-                            
-                            mainHandler.post(() -> {
-                                try {
-                                    Bitmap resourceBmp = BitmapFactory.decodeResource(getResources(), bgResIds[seg.selectedBg]);
-                                    if (resourceBmp == null) {
-                                        resourceBmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                            // 本地图片分支
+                            if (seg.selectedBg == -1 && seg.localBgBitmap != null) {
+                                bmp = seg.localBgBitmap;
+                            } else {
+                                // 在主线程中加载资源
+                                CountDownLatch latch = new CountDownLatch(1);
+                                final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>();
+                                mainHandler.post(() -> {
+                                    try {
+                                        Bitmap resourceBmp = BitmapFactory.decodeResource(getResources(), bgResIds[Math.max(0, Math.min(seg.selectedBg, bgResIds.length-1))]);
+                                        if (resourceBmp == null) {
+                                            resourceBmp = BitmapFactory.decodeResource(getResources(), R.drawable.leaf);
+                                        }
+                                        bitmapRef.set(resourceBmp);
+                                    } finally {
+                                        latch.countDown();
                                     }
-                                    bitmapRef.set(resourceBmp);
-                                } finally {
-                                    latch.countDown();
-                                }
-                            });
-                            
-                            // 等待主线程加载完成
-                            latch.await(2, TimeUnit.SECONDS);
-                            bmp = bitmapRef.get();
+                                });
+                                // 等待主线程加载完成
+                                latch.await(2, TimeUnit.SECONDS);
+                                bmp = bitmapRef.get();
+                            }
                         } catch (Exception e) {
                             Log.e("MindPic", "Error loading default image: " + e.getMessage());
                         }
@@ -858,23 +1102,25 @@ public class MainActivity extends AppCompatActivity {
                             );
                         } catch (Exception e) {
                             Log.e("MindPic", "Error in generatePreviewImage: " + e.getMessage());
-                            
-                            // 在主线程中加载默认背景
-                            CountDownLatch latch = new CountDownLatch(1);
-                            final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>();
-                            
-                            mainHandler.post(() -> {
-                                try {
-                                    Bitmap resourceBmp = BitmapFactory.decodeResource(getResources(), bgResIds[seg.selectedBg]);
-                                    bitmapRef.set(resourceBmp);
-                                } finally {
-                                    latch.countDown();
-                                }
-                            });
-                            
-                            // 等待主线程加载完成
-                            latch.await(2, TimeUnit.SECONDS);
-                            bmp = bitmapRef.get();
+                            // 本地图片分支
+                            if (seg.selectedBg == -1 && seg.localBgBitmap != null) {
+                                bmp = seg.localBgBitmap;
+                            } else {
+                                // 在主线程中加载默认背景
+                                CountDownLatch latch = new CountDownLatch(1);
+                                final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>();
+                                mainHandler.post(() -> {
+                                    try {
+                                        Bitmap resourceBmp = BitmapFactory.decodeResource(getResources(), bgResIds[Math.max(0, Math.min(seg.selectedBg, bgResIds.length-1))]);
+                                        bitmapRef.set(resourceBmp);
+                                    } finally {
+                                        latch.countDown();
+                                    }
+                                });
+                                // 等待主线程加载完成
+                                latch.await(2, TimeUnit.SECONDS);
+                                bmp = bitmapRef.get();
+                            }
                         }
                     }
 
@@ -1154,5 +1400,31 @@ public class MainActivity extends AppCompatActivity {
             Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "未检测到小红书App", Snackbar.LENGTH_SHORT);
             snackbar.show();
         }
+    }
+
+    // onActivityResult处理本地图片选择
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 2001 && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null && currentSegmentIndex >= 0 && currentSegmentIndex < segmentList.size()) {
+                SegmentData seg = segmentList.get(currentSegmentIndex);
+                seg.selectedBg = -1;
+                seg.localBgUri = uri;
+                try {
+                    Bitmap bitmap = android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+                    seg.localBgBitmap = bitmap;
+                    seg.localBgWidth = bitmap.getWidth();
+                    seg.localBgHeight = bitmap.getHeight();
+                } catch (Exception e) {
+                    seg.localBgBitmap = null;
+                    seg.localBgWidth = 0;
+                    seg.localBgHeight = 0;
+                }
+                autoGenerateAllSegmentImages();
+            }
+        }
+        updatePreviewPagerHeight();
     }
 } 
