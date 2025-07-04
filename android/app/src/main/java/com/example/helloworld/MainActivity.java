@@ -71,6 +71,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.LinkedBlockingQueue;
 import android.content.ClipboardManager;
 import android.content.ClipData;
+import com.google.android.material.textfield.TextInputLayout;
+import com.google.android.material.textfield.TextInputEditText;
 
 // 新建 SegmentData 类
 class SegmentData {
@@ -108,7 +110,6 @@ public class MainActivity extends AppCompatActivity {
     private Slider seekBarSize;
     private TextView tvSizeLabel;
     private int fontSize = 150;
-    private ImageButton btnClear;
     private float textRotation = 0f; // 文字旋转角度
     private float textOffsetX = 0f; // 文字X偏移
     private float textOffsetY = 0f; // 文字Y偏移
@@ -124,8 +125,7 @@ public class MainActivity extends AppCompatActivity {
     private int offsetXProgress = 0; // SeekBar的进度
     private int maxOffsetX = 800; // 最大偏移像素
 
-    private ImageButton btnToggleExpand;
-    private boolean isInputExpanded = false; // 初始为折叠状态
+    private boolean isInputExpanded = false;
     private String lastInputText = ""; // 记录上次收起时的内容
 
     private static final int REQUEST_WRITE_PERMISSION = 1001;
@@ -193,7 +193,6 @@ public class MainActivity extends AppCompatActivity {
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Set<Integer> generatingPositions = new HashSet<>();
 
-    private MaterialButton btnGenerate;
     private MaterialButton btnSaveAll;
 
     private ConstraintLayout previewContainer;
@@ -284,27 +283,21 @@ public class MainActivity extends AppCompatActivity {
             page.setRotationY(rotation);
         });
 
-        btnToggleExpand = findViewById(R.id.btnToggleExpand);
-        btnToggleExpand.setOnClickListener(new View.OnClickListener() {
+        TextInputLayout textInputLayout = findViewById(R.id.textInputLayout);
+        TextInputEditText etInput = findViewById(R.id.etInput);
+        // 设置endIcon点击事件
+        textInputLayout.setEndIconOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 isInputExpanded = !isInputExpanded;
                 if (isInputExpanded) {
-                    etInput.setMaxLines(Integer.MAX_VALUE);
-                    etInput.setMinLines(10);
-                    btnToggleExpand.setImageResource(R.drawable.collapse_content_24dp); // 展开时显示收起图标
-                    btnToggleExpand.animate().rotation(180f).setDuration(200).start();
-                    lastInputText = etInput.getText().toString();
-                    etInput.removeTextChangedListener(inputTextWatcher);
+                    etInput.setMaxLines(6);
+                    etInput.setMinLines(3);
+                    textInputLayout.setEndIconDrawable(R.drawable.collapse_content_24dp);
                 } else {
                     etInput.setMaxLines(1);
                     etInput.setMinLines(1);
-                    btnToggleExpand.setImageResource(R.drawable.expand_content_24dp); // 折叠时显示展开图标
-                    btnToggleExpand.animate().rotation(0f).setDuration(200).start();
-                    if (!lastInputText.equals(etInput.getText().toString())) {
-                        inputTextWatcher.onTextChanged(etInput.getText(), 0, 0, etInput.getText().length());
-                    }
-                    etInput.addTextChangedListener(inputTextWatcher);
+                    textInputLayout.setEndIconDrawable(R.drawable.expand_content_24dp);
                 }
             }
         });
@@ -439,26 +432,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        btnGenerate = findViewById(R.id.btnGenerate);
-        btnGenerate.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                autoGenerateAllSegmentImages();
-                Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "已生成图片", Snackbar.LENGTH_SHORT);
-                View snackbarView = snackbar.getView();
-                snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
-                TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
-                textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
-                textView.setCompoundDrawablePadding(24);
-                FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
-                params.gravity = Gravity.TOP;
-                params.topMargin = 80;
-                snackbarView.setLayoutParams(params);
-                snackbar.show();
-                snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
-            }
-        });
-
         btnSaveAll = findViewById(R.id.btnSaveAll);
         btnSaveAll.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -564,6 +537,26 @@ public class MainActivity extends AppCompatActivity {
         // 记录默认高度
         previewPager.post(() -> {
             defaultPreviewPagerHeight = previewPager.getHeight();
+        });
+
+        MaterialButton btnRefresh = findViewById(R.id.btnRefresh);
+        btnRefresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                autoGenerateAllSegmentImages();
+                Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "已生成图片", Snackbar.LENGTH_SHORT);
+                View snackbarView = snackbar.getView();
+                snackbar.setBackgroundTint(ContextCompat.getColor(MainActivity.this, R.color.colorPrimary));
+                TextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+                textView.setCompoundDrawablesWithIntrinsicBounds(R.drawable.download_done_24dp, 0, 0, 0);
+                textView.setCompoundDrawablePadding(24);
+                FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+                params.gravity = Gravity.TOP;
+                params.topMargin = 80;
+                snackbarView.setLayoutParams(params);
+                snackbar.show();
+                snackbarView.postDelayed(() -> snackbar.dismiss(), 1000);
+            }
         });
     }
 

@@ -24,55 +24,6 @@
             android:paddingTop="4dp"
             android:paddingBottom="4dp">
 
-            <!-- 输入区 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="16dp">
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="4dp">
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/textInputLayout"
-                        style="@style/Widget.MindPic.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        app:boxBackgroundMode="outline"
-                        app:boxCornerRadiusTopStart="16dp"
-                        app:boxCornerRadiusTopEnd="16dp"
-                        app:boxCornerRadiusBottomStart="16dp"
-                        app:boxCornerRadiusBottomEnd="16dp"
-                        app:endIconMode="clear_text">
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etInput"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="请输入描述"
-                            android:background="@android:color/transparent"
-                            android:padding="10dp"
-                            android:textSize="16sp"
-                            android:inputType="textMultiLine"
-                            android:gravity="top|start"
-                            android:minLines="1"
-                            android:maxLines="1" />
-                    </com.google.android.material.textfield.TextInputLayout>
-                </com.google.android.material.card.MaterialCardView>
-                <ImageButton
-                    android:id="@+id/btnToggleExpand"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:layout_marginStart="8dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/expand_content_24dp"
-                    android:contentDescription="展开/折叠"
-                    android:tint="@color/colorPrimary" />
-            </LinearLayout>
-
             <!-- 图片预览区 -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -83,7 +34,7 @@
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
-                    
+
                     <androidx.viewpager2.widget.ViewPager2
                         android:id="@+id/previewPager"
                         android:layout_width="0dp"
@@ -92,7 +43,7 @@
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintDimensionRatio="1:0.9" />
-                    
+
                     <ProgressBar
                         android:id="@+id/loadingProgress"
                         android:layout_width="48dp"
@@ -144,198 +95,256 @@
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp"
                 android:layout_marginBottom="8dp">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="4dp">
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
                         <TextView
                             android:id="@+id/tvSizeLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="字号：60"
                             android:textSize="14sp" />
+
                         <com.google.android.material.slider.Slider
                             android:id="@+id/seekBarSize"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
+                            android:value="60"
                             android:valueFrom="30"
                             android:valueTo="100"
-                            android:value="60"
                             app:trackColorActive="@color/colorPrimary"
                             app:trackColorInactive="@android:color/darker_gray" />
                     </LinearLayout>
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
                         <TextView
                             android:id="@+id/tvOffsetXLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
                             android:text="水平偏移：0"
-                            android:textSize="14sp"
-                            android:layout_marginEnd="6dp" />
+                            android:textSize="14sp" />
+
                         <com.google.android.material.slider.Slider
                             android:id="@+id/seekBarOffsetX"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
+                            android:value="0"
                             android:valueFrom="-1200"
                             android:valueTo="1200"
-                            android:value="0"
                             app:trackColorActive="@color/colorPrimary"
                             app:trackColorInactive="@android:color/darker_gray" />
                     </LinearLayout>
+
                     <com.google.android.material.button.MaterialButtonToggleGroup
                         android:id="@+id/groupAlign"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         app:singleSelection="true">
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnAlignLeft"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="左对齐"/>
+                            android:text="左对齐" />
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnAlignCenter"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="居中"/>
+                            android:text="居中" />
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnAlignRight"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="右对齐"/>
+                            android:text="右对齐" />
                     </com.google.android.material.button.MaterialButtonToggleGroup>
+
                     <com.google.android.material.button.MaterialButtonToggleGroup
                         android:id="@+id/groupBg"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         app:singleSelection="true">
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBgLocal"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="本地图片"/>
+                            android:text="本地图片" />
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBg3"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="月亮1"/>
+                            android:text="月亮1" />
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBg1"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="叶子"/>
+                            android:text="叶子" />
+
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBg2"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="月亮2"/>
+                            android:text="月亮2" />
                     </com.google.android.material.button.MaterialButtonToggleGroup>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <!-- 操作按钮区，紧跟参数区后面 -->
+            <LinearLayout
+                android:id="@+id/bottomButtonBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:background="@android:color/transparent">
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSave"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    style="@style/Widget.MaterialComponents.Button"
+                    app:icon="@drawable/download_24dp"
+                    app:iconSize="24dp"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp"
+                    app:cornerRadius="20dp"
+                    app:backgroundTint="@color/colorPrimary"
+                    app:iconTint="@android:color/white"
+                    android:textColor="@android:color/white"
+                    android:layout_marginStart="12dp"
+                    android:elevation="8dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveAll"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    style="@style/Widget.MaterialComponents.Button"
+                    app:icon="@drawable/archive_24dp"
+                    app:iconSize="24dp"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp"
+                    app:cornerRadius="20dp"
+                    app:backgroundTint="@color/colorPrimary"
+                    app:iconTint="@android:color/white"
+                    android:textColor="@android:color/white"
+                    android:layout_marginStart="12dp"
+                    android:elevation="8dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveAndShare"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    style="@style/Widget.MaterialComponents.Button"
+                    app:icon="@drawable/share_24dp"
+                    app:iconSize="24dp"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp"
+                    app:cornerRadius="20dp"
+                    app:backgroundTint="#FF2442"
+                    app:iconTint="@android:color/white"
+                    android:textColor="@android:color/white"
+                    android:layout_marginStart="12dp"
+                    android:elevation="8dp" />
+            </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- 底部操作栏 -->
+    <!-- 底部输入区，始终在最底部 -->
     <LinearLayout
-        android:id="@+id/bottomButtonBar"
+        android:id="@+id/bottomInputBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
+        android:gravity="center_vertical"
         android:layout_gravity="bottom"
-        android:layout_marginBottom="12dp"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
         android:background="@android:color/transparent">
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnGenerate"
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp">
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/textInputLayout"
+                style="@style/Widget.MindPic.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:boxBackgroundMode="outline"
+                app:boxCornerRadiusTopStart="16dp"
+                app:boxCornerRadiusTopEnd="16dp"
+                app:boxCornerRadiusBottomStart="16dp"
+                app:boxCornerRadiusBottomEnd="16dp"
+                app:endIconMode="custom"
+                app:endIconDrawable="@drawable/expand_content_24dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="请输入描述"
+                    android:background="@android:color/transparent"
+                    android:padding="10dp"
+                    android:textSize="16sp"
+                    android:inputType="textMultiLine"
+                    android:gravity="top|start"
+                    android:minLines="1"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRefresh"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
             style="@style/Widget.MaterialComponents.Button"
             app:icon="@drawable/autorenew_24dp"
             app:iconSize="24dp"
-            app:iconGravity="textStart"
-            app:iconPadding="8dp"
-            app:cornerRadius="20dp"
+            app:cornerRadius="24dp"
             app:backgroundTint="@color/colorPrimary"
             app:iconTint="@android:color/white"
-            android:textColor="@android:color/white"
-            android:elevation="8dp" />
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSave"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="@style/Widget.MaterialComponents.Button"
-            app:icon="@drawable/download_24dp"
-            app:iconSize="24dp"
-            app:iconGravity="textStart"
-            app:iconPadding="8dp"
-            app:cornerRadius="20dp"
-            app:backgroundTint="@color/colorPrimary"
-            app:iconTint="@android:color/white"
-            android:textColor="@android:color/white"
-            android:layout_marginStart="12dp"
-            android:elevation="8dp" />
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSaveAll"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="@style/Widget.MaterialComponents.Button"
-            app:icon="@drawable/archive_24dp"
-            app:iconSize="24dp"
-            app:iconGravity="textStart"
-            app:iconPadding="8dp"
-            app:cornerRadius="20dp"
-            app:backgroundTint="@color/colorPrimary"
-            app:iconTint="@android:color/white"
-            android:textColor="@android:color/white"
-            android:layout_marginStart="12dp"
-            android:elevation="8dp" />
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSaveAndShare"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            style="@style/Widget.MaterialComponents.Button"
-            app:icon="@drawable/share_24dp"
-            app:iconSize="24dp"
-            app:iconGravity="textStart"
-            app:iconPadding="8dp"
-            app:cornerRadius="20dp"
-            app:backgroundTint="#FF2442"
-            app:iconTint="@android:color/white"
-            android:textColor="@android:color/white"
-            android:layout_marginStart="12dp"
             android:elevation="8dp" />
     </LinearLayout>
 
